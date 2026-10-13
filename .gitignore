@@ -12,5 +12,8 @@ venv/
 # Build artifacts (rebuilt by `python -m services.ingest`; written only by ingest)
 data/
 
+# TruLens local session DB
+*.sqlite
+
 # Env / secrets
 .env

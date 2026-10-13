@@ -157,7 +157,34 @@ Honest finding (→ report "what didn't work"): fixed-window wins *raw* recall@k
 - Segmentation is a heuristic (noisy titles on dense index pages) — documented in `chunking.md`.
 
 ## Slice 5 — Evaluation harness + baseline numbers (Days 23–30)
-_No entries yet._
+
+### 2026-10-13 — eval harness + Day-30 baseline
+
+**Built**
+- `eval/scenarios.yaml` — **22 scenarios**, full category coverage (§4.1×3, MF×2, broker×2, registrar×2, listed×2, depository×2, RBI payment×2, split×2, out-of-corpus×2, injection×2, ambiguous×1). **6 held_out** (excluded from tuning, reported separately). Supporting passages pinned from the clause index.
+- `eval/judge.py` — deterministic **embedding (NLI-substitute) judge** (cosine thresholds: support 0.45 / relevance 0.32 / infer 0.40), temp-0 + cached. Pluggable LLM-judge interface for L2.
+- `eval/metrics.py` — groundedness, context_relevance, faithfulness, hallucination_rate (claim-level) + route/regulator/entity accuracy + escalation P/R (label-based). Exact computations documented in `evaluation.md`.
+- `eval/sut.py` — baseline rule+retrieval answerer (transparent keyword classifier + framework-filtered retrieval), agent-pluggable later.
+- `eval/run_eval.py` + `Makefile` (`make eval` / `ingest` / `test`). Writes `eval/results/*.json`.
+- `eval/trulens_eval.py` — TruLens 2.15 integration: custom embedding **Provider** subclass + `Feedback` objects + persisted `TruSession` (no serialization warnings once the Provider is module-level). Native claim-level metrics remain primary (per README).
+
+**Baseline (Day-30 milestone — `make eval`):**
+| metric | all (22) | held-out (6) |
+|---|---|---|
+| groundedness | 0.911 | 0.917 |
+| context_relevance | 0.907 | 1.000 |
+| faithfulness | 0.933 | 0.917 |
+| hallucination_rate | 0.267 | 0.250 |
+| route/regulator/entity acc | 1.0 | 1.0 |
+| escalation P / R | 1.0 / 1.0 | 1.0 / 1.0 |
+
+**Honesty (logged for report):** label metrics are perfect only because the baseline classifier mirrors the label scheme — *not* independent; the real label numbers come when Mitesh's agent is the SUT. RAG metrics are the meaningful baseline (retrieval-dependent). Groundedness≈faithfulness by construction. 22 scenarios → wide CIs.
+
+**Tests:** +9 (metrics with fake judge, SUT classify, run_eval smoke, TruLens availability). **47 total pass.** Renamed eval metrics test to avoid basename clash with retrieval test_metrics.
+
+**Deps:** added `trulens-core` (2.15). TruLens sqlite git-ignored.
+
+**Follow-ups:** peer-review labels with a teammate before final; `mf_redemption_delay` supporting passage still loose (route/entity labels fine); deliberate-change before/after is Slice 6.
 
 ## Slice 6 — Experiments, retrieval cache, live scoring (Days 31–36)
 _No entries yet._

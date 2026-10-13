@@ -135,7 +135,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 5 — Evaluation harness + baseline numbers
 **Days 23–30 · the biggest piece; baseline is a hard Day-30 milestone**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — `eval/scenarios.yaml` (22, 6 held-out, full category coverage), `judge.py` (deterministic embedding/NLI judge, pluggable LLM judge), `metrics.py` (groundedness/context-relevance/faithfulness/hallucination + route acc + escalation P/R), `sut.py` (baseline rule+retrieval, agent-pluggable), `run_eval.py` + `make eval`, TruLens integration (custom Provider + Feedback + TruSession). **Baseline recorded** (G 0.911 / CR 0.907 / F 0.933 / halluc 0.267). 47 tests pass. Full write-up: `evaluation.md`. (Label metrics perfect because baseline mirrors labels — real signal is RAG metrics / agent SUT; documented.)
 
 **Goal:** `make eval` runs ≥20 scenarios and prints the four metrics + route accuracy, with trustworthy labels.
 
