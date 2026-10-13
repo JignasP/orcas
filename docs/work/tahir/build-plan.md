@@ -178,7 +178,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 7 — Web client finish + retrieval hardening
 **Days 37–40 · make the demo items I drive bulletproof**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — web client finished (expandable citations w/ full passage text, escalation path + reason + partial findings, verification block, 👍/👎 feedback → `POST /v1/runs/{id}/feedback`); retrieval hardened (`/ready` readiness + `/health` liveness split, per-request 504 timeout, graceful empty-index; Dockerfile healthcheck → `/ready`); final scenario payloads delivered to Jignas (`loadtest/payloads.json`, 22 complaint.v1 bodies). 60 tests pass; live-smoked.
 
 **Goal:** the web client shows everything the demo needs; retrieval is production-hardened.
 

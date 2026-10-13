@@ -7,6 +7,9 @@
 const $ = (id) => document.getElementById(id);
 const TERMINAL = ["completed", "escalated", "failed"];
 
+let _base = "";      // gateway base used for the current run (for the feedback call)
+let _runId = null;
+
 const PRESETS = {
   bank_fd: "I invested in a fixed deposit through my bank's app. The interest credited is lower than what I was promised. I want to complain to SEBI.",
   mf: "My mutual fund redemption has been delayed by two weeks and the NAV on my statement looks wrong. The AMC has not responded.",
@@ -50,6 +53,7 @@ function buildComplaint() {
 async function onSubmit(e) {
   e.preventDefault();
   const base = gatewayBase();
+  _base = base;
   localStorage.setItem("orcas_gateway", base);
   const btn = $("submit");
   btn.disabled = true;
@@ -68,6 +72,7 @@ async function onSubmit(e) {
       throw new Error(`submit failed (${res.status}): ${body}`);
     }
     const { run_id } = await res.json();
+    _runId = run_id;
     $("run-id").textContent = run_id;
     await poll(base, run_id);
   } catch (err) {
@@ -107,34 +112,77 @@ function render(run) {
     <dt>Route</dt><dd><strong>${esc(d.route)}</strong></dd>
     <dt>Regulator</dt><dd>${esc(d.regulator)}</dd>
     <dt>Entity type</dt><dd>${esc(d.entity_type)}</dd>
+    ${d.timeline && d.timeline.days != null
+      ? `<dt>Timeline</dt><dd>${esc(d.timeline.days)} days</dd>` : ""}
     <dt>Index version</dt><dd><code>${esc(d.index_version || "")}</code></dd>
-    <dt>Degraded</dt><dd>${d.degraded ? "yes" : "no"}</dd>
+    <dt>Degraded</dt><dd>${d.degraded ? "yes ⚠️" : "no"}</dd>
   </dl>`);
   if (d.basis) parts.push(`<p><strong>Basis.</strong> ${esc(d.basis)}</p>`);
 
+  // Escalation path + reason
   if (d.escalation) {
-    parts.push(`<div class="escalation"><strong>Escalated:</strong>
-      ${esc(d.escalation.reason_code)} — ${esc(d.escalation.reason || "")}</div>`);
+    const e = d.escalation;
+    const findings = (e.partial_findings && e.partial_findings.length)
+      ? `<div class="meta">Partial findings: ${esc(e.partial_findings.join("; "))}</div>` : "";
+    parts.push(`<div class="escalation">
+      <strong>Escalated to a human.</strong>
+      <div class="meta">reason: <code>${esc(e.reason_code)}</code></div>
+      <div>${esc(e.reason || "")}</div>${findings}</div>`);
   }
 
+  // Citations with expandable full passage text
   const cites = d.citations || [];
   if (cites.length) {
     parts.push(`<h3>Citations (${cites.length})</h3>`);
     for (const c of cites) {
-      parts.push(`<div class="citation">
-        <div class="meta">${esc(c.doc_title || c.doc_id)} · ${esc(c.circular_ref || "")} · clause ${esc(c.clause || "")}
-          · chunk <code>${esc((c.chunk_id || "").slice(0, 12))}…</code></div>
+      const passage = c.passage_text || c.quote_span || "";
+      parts.push(`<details class="citation">
+        <summary>${esc(c.doc_title || c.doc_id)} · clause ${esc(c.clause || "")}
+          <span class="meta">(${esc(c.circular_ref || "")} · chunk ${esc((c.chunk_id || "").slice(0, 12))}…)</span></summary>
         <div class="quote">"${esc(c.quote_span || "")}"</div>
-      </div>`);
+        ${c.passage_text ? `<div class="passage">${esc(passage)}</div>` : ""}
+      </details>`);
     }
   }
 
+  // Verification outcome
   if (d.verification) {
     const v = d.verification;
-    parts.push(`<p class="meta">Verification: ${v.passed ? "passed" : "failed"}
-      (${v.claims_supported ?? "?"}/${v.claims_checked ?? "?"} claims, ${v.attempts ?? 1} attempt(s))</p>`);
+    parts.push(`<div class="verify ${v.passed ? "ok" : "bad"}">
+      Verification: <strong>${v.passed ? "passed ✓" : "failed ✗"}</strong>
+      — ${v.claims_supported ?? "?"}/${v.claims_checked ?? "?"} claims supported,
+      ${v.attempts ?? 1} attempt(s)</div>`);
   }
+
+  // Feedback buttons
+  parts.push(`<div class="feedback">
+    <span>Was this routing helpful?</span>
+    <button type="button" class="fb" data-rating="up">👍 Up</button>
+    <button type="button" class="fb" data-rating="down">👎 Down</button>
+    <input id="fb-reason" type="text" placeholder="optional reason" />
+    <span id="fb-ack" class="meta"></span>
+  </div>`);
+
   $("result").innerHTML = parts.join("\n");
+  for (const b of document.querySelectorAll(".fb")) {
+    b.addEventListener("click", () => sendFeedback(b.dataset.rating));
+  }
+}
+
+async function sendFeedback(rating) {
+  if (!_runId) return;
+  const reason = ($("fb-reason").value || "").trim();
+  const ack = $("fb-ack");
+  try {
+    const res = await fetch(`${_base}/v1/runs/${_runId}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating, reason }),
+    });
+    ack.textContent = res.ok ? `thanks — recorded "${rating}"` : `feedback failed (${res.status})`;
+  } catch (err) {
+    ack.textContent = "feedback failed: " + err.message;
+  }
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

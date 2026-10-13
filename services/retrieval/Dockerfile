@@ -29,9 +29,9 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 COPY services/ ./services/
 
 EXPOSE 8001
-# /health returns 503 until the index volume is populated by ingest; start-period
-# gives the model time to load.
+# Readiness probe: /ready returns 503 until the index volume is populated by ingest, then 200.
+# (/health is liveness and always 200 so the container is not killed while ingest runs.)
 HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=5 \
-  CMD curl -fsS http://localhost:8001/health || exit 1
+  CMD curl -fsS http://localhost:8001/ready || exit 1
 
 CMD ["uvicorn", "services.retrieval.app:app", "--host", "0.0.0.0", "--port", "8001"]

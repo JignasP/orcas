@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 app = FastAPI(title="ORCAS fake gateway (dev only)")
 _RUNS: dict[str, dict] = {}
+_FEEDBACK: dict[str, dict] = {}
 STATIC = Path(__file__).resolve().parent / "static"
 INDEX_VERSION = "minilm-l6-v2.devfake.606"
 
@@ -37,6 +38,11 @@ class Complaint(BaseModel):
     text: str = ""
     date_of_event: str | None = None
     date_filed: str | None = None
+
+
+class Feedback(BaseModel):
+    rating: str  # up | down
+    reason: str = ""
 
 
 def _iso() -> str:
@@ -67,9 +73,18 @@ def get_run(run_id: str):
     return {"run_id": run_id, "status": status, "submitted_at": run["submitted_at"]}
 
 
-def _cite(citation_id, doc_id, doc_title, circular_ref, clause, chunk_id, quote):
+def _cite(citation_id, doc_id, doc_title, circular_ref, clause, chunk_id, quote, passage_text=""):
     return {"citation_id": citation_id, "doc_id": doc_id, "doc_title": doc_title,
-            "circular_ref": circular_ref, "clause": clause, "chunk_id": chunk_id, "quote_span": quote}
+            "circular_ref": circular_ref, "clause": clause, "chunk_id": chunk_id,
+            "quote_span": quote, "passage_text": passage_text}
+
+
+@app.post("/v1/runs/{run_id}/feedback")
+def feedback(run_id: str, body: Feedback):
+    if run_id not in _RUNS:
+        return JSONResponse(status_code=404, content={"error": "unknown run_id"})
+    _FEEDBACK[run_id] = {"rating": body.rating, "reason": body.reason, "ts": _iso()}
+    return {"status": "recorded", "run_id": run_id, "rating": body.rating}
 
 
 def _determination(run_id: str, text: str) -> dict:
@@ -91,13 +106,21 @@ def _determination(run_id: str, text: str) -> dict:
                           "ae8861c58c329fc7062bef1db8c34b7cf6efbf1398ed39367f0efd2815d42d7f",
                           "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster"),
                     _cite("c2", "rbi_integrated_ombudsman_scheme_2021", "RBI Integrated Ombudsman Scheme 2021",
-                          "RBI IOS 2021", "p1w0",
+                          "RBI IOS 2021", "preamble",
                           "801da99662534d0c3a0f0e8cd188d1394aee534a498b2a08a140cfa5ea9faf91",
-                          "regulated by Reserve Bank of India in an expeditious and cost-effective manner"),
+                          "regulated by Reserve Bank of India in an expeditious and cost-effective manner",
+                          "A Scheme for resolving customer grievances in relation to services provided by "
+                          "entities regulated by Reserve Bank of India in an expeditious and cost-effective "
+                          "manner under Section 35A of the Banking Regulation Act, 1949, Section 45L of the "
+                          "Reserve Bank of India Act, 1934 and Section 18 of the Payment and Settlement "
+                          "Systems Act, 2007."),
                     _cite("c3", "rbi_integrated_ombudsman_scheme_2021", "RBI Integrated Ombudsman Scheme 2021",
-                          "RBI IOS 2021", "p6w0",
+                          "RBI IOS 2021", "9",
                           "7b4481e134cbf5696953bd16b43861b2c2fe762584e280c55423ab1a7a0fb53e",
-                          "deficiency in service may file a complaint under the Scheme"),
+                          "deficiency in service may file a complaint under the Scheme",
+                          "9. Grounds of Complaint — Any customer aggrieved by an act or omission of a "
+                          "Regulated Entity resulting in deficiency in service may file a complaint under "
+                          "the Scheme personally or through an authorised representative."),
                 ],
                 "escalation": None,
                 "verification": {"passed": True, "claims_checked": 3, "claims_supported": 3, "attempts": 1}}
