@@ -93,7 +93,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 3 — Web client v0 (submit / poll / display)
 **Days 11–14 · joins the Day-14 walking skeleton**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — static web client (`services/web/static/`: presets, submit, poll, render determination w/ citations+escalation) built against a dev `fake_gateway.py` (documented contract, serves the page same-origin). nginx Dockerfile. Live end-to-end verified (§4.1 preset → RBI referral). 6 web tests (24 total pass). Expandable passages + feedback buttons deferred to Slice 7 as planned.
 
 **Goal:** a static page that drives a complaint through the gateway contract and shows the result.
 
