@@ -76,7 +76,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 2 — Evaluation 1 package + retrieval containerized
 **Days 9–13 · the graded milestone, Eval 1**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — `evaluation-1-package.md` written (corpus confirmation, §4.1 apparent+deciding passages, reference determination, project plan); retrieval + ingest Dockerfiles (model baked at build, `/health`, `/metrics`); `/metrics` added (18 tests pass). Image not built locally (Docker offline/disk) — build on a Docker host/CI. Confirm real Eval-1 date with faculty.
 
 **Goal:** the deliverable faculty reviews at Evaluation 1, and retrieval running as a container for the team.
 

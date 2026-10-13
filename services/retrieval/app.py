@@ -6,8 +6,10 @@ Run (from repo root, venv active):
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from . import metrics
 from .models import Chunk, Clause, Error, Health, IndexInfo, SearchRequest, SearchResponse
 from .service import Retriever
 
@@ -17,7 +19,12 @@ _retriever = Retriever()
 
 @app.post("/v1/search", response_model=SearchResponse)
 def search(req: SearchRequest) -> SearchResponse:
-    return _retriever.search(req)
+    resp = _retriever.search(req)
+    metrics.SEARCH_LATENCY.observe(resp.latency_ms / 1000.0)
+    metrics.RESULTS_PER_QUERY.observe(resp.count)
+    (metrics.CACHE_HITS if resp.cache_hit else metrics.CACHE_MISSES).inc()
+    metrics.REQUESTS.labels(endpoint="search", status="ok").inc()
+    return resp
 
 
 @app.get("/v1/clauses/{doc_id}/{clause_id}", response_model=Clause)
@@ -42,6 +49,12 @@ def index_info() -> IndexInfo:
     if info is None:
         raise HTTPException(status_code=503, detail="index not built yet")
     return info
+
+
+@app.get("/metrics")
+def prometheus_metrics() -> Response:
+    metrics.refresh_index_gauges()
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/health", response_model=Health)
