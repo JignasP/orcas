@@ -187,7 +187,21 @@ Honest finding (→ report "what didn't work"): fixed-window wins *raw* recall@k
 **Follow-ups:** peer-review labels with a teammate before final; `mf_redemption_delay` supporting passage still loose (route/entity labels fine); deliberate-change before/after is Slice 6.
 
 ## Slice 6 — Experiments, retrieval cache, live scoring (Days 31–36)
-_No entries yet._
+
+### 2026-10-13 — before/after, variant harness, cache, live scorer
+
+**Deliberate change (framework filter OFF→ON, 22 scenarios, `eval/experiment.py`):**
+groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), hallucination 0.333→0.267 (−0.066), context_relevance 0.973→0.907 (−0.066), route_acc 1.0. **Honest:** filter improves grounding + cuts hallucination (the §4.1 fix) at a small context-relevance cost (unfiltered retrieval returns the most query-similar passages regardless of regulator). Reported as a worthwhile trade.
+
+**Variant harness (L2):** same engine runs ≥2 named configs; Mitesh's reflect-prompt variants plug in as configs when his agent is the SUT. Validated on dense vs hybrid → dense wins (CR 0.907 vs 0.760), consistent with Slice-4.
+
+**Retrieval cache (D7, `services/retrieval/cache.py`):** key = sha256(norm query | filters | mode | k | index_version). Redis if `REDIS_URL` else in-process TTL dict. Wired into `Retriever.search`; `cache_hit` + `orcas_retrieval_cache_{hits,misses}_total`. Effect (`eval/cache_effect.py`): cold p95 41.96ms / warm p95 0.12ms (hit ratio 0→1). index_version in the key → re-index invalidates stale entries.
+
+**Live scorer (L6, `eval/live_scorer.py`):** deterministic 20% sampling of completed runs, scores with the same judge/metrics, writes `eval_scores`; feedback up/down aggregated. In-memory RunStore/EvalScoreStore/FeedbackStore seams matching Jignas's Postgres shape. Demo: 15 completed→3 sampled, feedback up-rate 0.727.
+
+**Tests:** +6 (cache key/TTL/hit-path, experiment run_configs, live scorer sampling/scoring/feedback). **53 pass.** Added `redis` (optional). Cache is per-Retriever injectable; default process-wide singleton.
+
+**Follow-ups:** wire live scorer to Jignas's real RunStore/eval_scores + Grafana; swap Mitesh's agent in as SUT for independent label metrics; final scenario payloads → Jignas (Slice 7).
 
 ## Slice 7 — Web client finish + retrieval hardening (Days 37–40)
 _No entries yet._

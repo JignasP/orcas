@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-10-13T08:24:23.896593+00:00",
+  "deliberate_change": {
+    "filter_off": {
+      "n_scenarios": 22,
+      "n_answered": 15,
+      "groundedness": 0.889,
+      "context_relevance": 0.973,
+      "faithfulness": 0.911,
+      "hallucination_rate": 0.333,
+      "route_accuracy": 1.0,
+      "regulator_accuracy": 1.0,
+      "entity_accuracy": 1.0,
+      "escalation_precision": 1.0,
+      "escalation_recall": 1.0,
+      "judge": "embedding-minilm-l6-v2"
+    },
+    "filter_on": {
+      "n_scenarios": 22,
+      "n_answered": 15,
+      "groundedness": 0.911,
+      "context_relevance": 0.907,
+      "faithfulness": 0.933,
+      "hallucination_rate": 0.267,
+      "route_accuracy": 1.0,
+      "regulator_accuracy": 1.0,
+      "entity_accuracy": 1.0,
+      "escalation_precision": 1.0,
+      "escalation_recall": 1.0,
+      "judge": "embedding-minilm-l6-v2"
+    }
+  },
+  "variants": {
+    "dense": {
+      "n_scenarios": 22,
+      "n_answered": 15,
+      "groundedness": 0.911,
+      "context_relevance": 0.907,
+      "faithfulness": 0.933,
+      "hallucination_rate": 0.267,
+      "route_accuracy": 1.0,
+      "regulator_accuracy": 1.0,
+      "entity_accuracy": 1.0,
+      "escalation_precision": 1.0,
+      "escalation_recall": 1.0,
+      "judge": "embedding-minilm-l6-v2"
+    },
+    "hybrid": {
+      "n_scenarios": 22,
+      "n_answered": 15,
+      "groundedness": 0.911,
+      "context_relevance": 0.76,
+      "faithfulness": 0.978,
+      "hallucination_rate": 0.267,
+      "route_accuracy": 1.0,
+      "regulator_accuracy": 1.0,
+      "entity_accuracy": 1.0,
+      "escalation_precision": 1.0,
+      "escalation_recall": 1.0,
+      "judge": "embedding-minilm-l6-v2"
+    }
+  },
+  "variant_winner": "dense"
+}

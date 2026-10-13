@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import List
 
-from services.retrieval.models import SearchFilters, SearchRequest
+from services.retrieval.models import SearchFilters, SearchMode, SearchRequest
 from services.retrieval.service import Retriever
 
 from .metrics import EvalResult, split_claims
@@ -54,11 +54,24 @@ def classify(text: str):
 
 
 class BaselineSUT:
-    name = "baseline-rule+retrieval"
+    """Baseline system-under-test. Config knobs let the before/after and variant experiments
+    toggle one thing at a time:
+      use_framework_filter — the "framework swap" that fixes §4.1 (the deliberate change)
+      mode                 — dense vs hybrid retrieval
+      k                    — number of grounding contexts
+    """
 
-    def __init__(self, retriever: Retriever = None, k: int = 5):
+    def __init__(self, retriever: Retriever = None, k: int = 5,
+                 use_framework_filter: bool = True, mode: str = "dense"):
         self.r = retriever or Retriever()
         self.k = k
+        self.use_framework_filter = use_framework_filter
+        self.mode = SearchMode(mode)
+
+    @property
+    def name(self) -> str:
+        return (f"baseline[filter={'on' if self.use_framework_filter else 'off'},"
+                f"mode={self.mode.value},k={self.k}]")
 
     def run(self, scenario: dict) -> EvalResult:
         text = scenario["complaint_text"]
@@ -66,8 +79,9 @@ class BaselineSUT:
         contexts: List[str] = []
         claims: List[str] = []
         if not escalated:
+            filters = SearchFilters(framework=regulator) if self.use_framework_filter else None
             resp = self.r.search(SearchRequest(
-                query=text, k=self.k, filters=SearchFilters(framework=regulator)))
+                query=text, k=self.k, mode=self.mode, filters=filters))
             contexts = [p.text for p in resp.results]
             route_claim = (f"The complaint is routed as {route} to {regulator} as a "
                            f"{entity} matter.")

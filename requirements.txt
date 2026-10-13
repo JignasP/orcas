@@ -13,6 +13,7 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2.6
 prometheus-client>=0.20
+redis>=5  # retrieval cache backend (used only when REDIS_URL is set)
 
 # Evaluation
 trulens-core>=1.0

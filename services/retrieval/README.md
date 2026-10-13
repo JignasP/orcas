@@ -45,5 +45,9 @@ curl -s localhost:8001/health && curl -s localhost:8001/metrics | head
   available via `mode`. See `docs/work/tahir/chunking.md`.
 - Scores are cosine similarity (`1 - distance`) for dense; RRF fusion scores for hybrid.
 
-## Remaining (later slices)
-- Redis retrieval cache + cache-hit metrics → **Slice 6**.
+## Cache (D7, Slice 6)
+`search()` is cached by `sha256(normalised_query | filters | mode | k | index_version)`
+(`services/retrieval/cache.py`). Backend: Redis when `REDIS_URL` is set (shared across workers),
+otherwise a process-local TTL dict. `cache_hit` is reported per response and counted in
+`orcas_retrieval_cache_{hits,misses}_total`. Measured effect: `python -m eval.cache_effect`
+(warm p95 ≈ 0.1 ms vs cold ≈ 42 ms on the scenario set).
