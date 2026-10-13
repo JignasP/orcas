@@ -24,10 +24,21 @@ button:disabled { opacity: .6; cursor: progress; }
 .badge.failed { background: #f8d7da; color: #842029; }
 .kv { display: grid; grid-template-columns: 160px 1fr; gap: .25rem .75rem; margin: .5rem 0; }
 .kv dt { font-weight: 600; color: #555; }
-.citation { border-left: 3px solid #1565c0; background: #f2f6fc; padding: .5rem .75rem;
+details.citation { border-left: 3px solid #1565c0; background: #f2f6fc; padding: .5rem .75rem;
   margin: .5rem 0; border-radius: 0 6px 6px 0; }
-.citation .meta { font-size: .78rem; color: #555; }
-.quote { font-style: italic; color: #222; }
-.escalation { border-left: 3px solid #e67e22; background: #fff6ec; padding: .5rem .75rem; border-radius: 0 6px 6px 0; }
+details.citation summary { cursor: pointer; font-weight: 600; }
+.citation .meta { font-size: .78rem; color: #555; font-weight: 400; }
+.quote { font-style: italic; color: #222; margin: .4rem 0; }
+.passage { font-size: .85rem; color: #333; white-space: pre-wrap; background: #fff;
+  border: 1px solid #dde3ea; border-radius: 6px; padding: .5rem; margin-top: .4rem; }
+.escalation { border-left: 3px solid #e67e22; background: #fff6ec; padding: .5rem .75rem;
+  border-radius: 0 6px 6px 0; margin: .5rem 0; }
+.verify { padding: .4rem .6rem; border-radius: 6px; margin: .6rem 0; font-size: .9rem; }
+.verify.ok { background: #e6f6ea; color: #0d6b2b; }
+.verify.bad { background: #fde8e8; color: #842029; }
+.feedback { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid #e2e5e9;
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.feedback button.fb { margin: 0; background: #eef1f5; color: #1a1a1a; }
+.feedback input { width: auto; flex: 1; min-width: 160px; }
 code { background: #eef0f3; padding: .05rem .3rem; border-radius: 4px; font-size: .85em; }
 .err { color: #842029; font-weight: 600; }

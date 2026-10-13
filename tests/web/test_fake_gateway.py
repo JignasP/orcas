@@ -64,3 +64,22 @@ def test_static_index_served():
     r = client.get("/")
     assert r.status_code == 200
     assert "ORCAS" in r.text
+
+
+def test_feedback_recorded():
+    run_id = _submit("My demat account was frozen by the depository participant.")
+    r = client.post(f"/v1/runs/{run_id}/feedback", json={"rating": "up", "reason": "accurate"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "recorded"
+    assert fake_gateway._FEEDBACK[run_id]["rating"] == "up"
+
+
+def test_feedback_unknown_run_404():
+    assert client.post("/v1/runs/nope/feedback", json={"rating": "down"}).status_code == 404
+
+
+def test_bank_fd_citations_have_passage_text():
+    run = _complete(_submit("I invested in a fixed deposit through my bank app; interest is lower than promised."))
+    cites = run["result"]["citations"]
+    rbi = [c for c in cites if c["doc_id"] == "rbi_integrated_ombudsman_scheme_2021"]
+    assert rbi and all(c.get("passage_text") for c in rbi)  # expandable full passage present

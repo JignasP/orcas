@@ -28,9 +28,11 @@ docker run --rm -p 8080:80 orcas-web
 
 ## Contract consumed
 `POST /v1/complaints -> {run_id, status_url}`; `GET /v1/runs/{id} -> run_status.v1`
-(`result` is a `determination.v1` when terminal). Built from the documented contract until
-Jignas commits the gateway schemas.
+(`result` is a `determination.v1` when terminal); `POST /v1/runs/{id}/feedback {rating, reason}`.
+Built from the documented contract until Jignas commits the gateway schemas.
 
-## Deferred to Slice 7
-Expandable full passage text, escalation-path detail, and feedback buttons
-(`POST /v1/runs/{id}/feedback`).
+## Rendered (Slice 7)
+Route/regulator/entity/timeline, basis, **expandable citations** (`<details>` revealing the full
+passage text when present, else the quote), **escalation path + reason + partial findings**,
+**verification outcome** (passed, claims supported/checked, attempts), and **feedback buttons**
+(👍/👎 + optional reason → `POST /v1/runs/{id}/feedback`).

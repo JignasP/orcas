@@ -204,7 +204,21 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 **Follow-ups:** wire live scorer to Jignas's real RunStore/eval_scores + Grafana; swap Mitesh's agent in as SUT for independent label metrics; final scenario payloads → Jignas (Slice 7).
 
 ## Slice 7 — Web client finish + retrieval hardening (Days 37–40)
-_No entries yet._
+
+### 2026-10-13 — web client finished, retrieval hardened, payloads handoff
+
+**Web client (A8 finished):** expandable citations (`<details>` → full `passage_text` when present, else quote), escalation path (reason_code + reason + partial findings), verification block (passed, claims supported/checked, attempts), timeline; **feedback buttons** 👍/👎 + optional reason → `POST /v1/runs/{id}/feedback`. Fake gateway gained the feedback endpoint (stores `_FEEDBACK`) and `passage_text` on the §4.1 RBI citations. Live-smoked: determination shows 2/3 citations with passage_text; feedback recorded.
+
+**Retrieval hardening:**
+- `/health` → **liveness** (always 200, never flaps while ingest builds); `/ready` → **readiness** (200 only when index openable & non-empty, else 503). Dockerfile HEALTHCHECK → `/ready`.
+- Per-request **timeout** (`RETRIEVAL_TIMEOUT_S`, default 10s) via a ThreadPool future → **504** on overrun (`with_timeout` helper, unit-tested).
+- **Graceful empty-index:** search returns `count:0` (no crash), lookups 404, `/ready` 503 — tested on a fresh empty collection.
+
+**Handoff:** `loadtest/payloads.json` — 22 valid `complaint.v1` bodies derived from scenarios, for Jignas's Locust. `loadtest/README.md` explains usage. (This is the Day-28 "final scenario payloads → Jignas" handoff.)
+
+**Tests:** +7 (web feedback + passage_text; `/health`/`/ready`, `with_timeout` 504, empty-index). **60 total pass.** Live smoke: retrieval /health 200 + /ready 200; web submit→feedback OK.
+
+**Demo readiness:** items #2 (valid request, citations resolve), #10 (§4.1 passages + routed answer) and the #5 answerable/unanswerable are all drivable from the client now.
 
 ## Slice 8 — Report sections + freeze (Days 41–43)
 _No entries yet._

@@ -5,6 +5,10 @@ Run (from repo root, venv active):
 """
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -16,10 +20,27 @@ from .service import Retriever
 app = FastAPI(title="ORCAS Retrieval Service", version="1.0.0")
 _retriever = Retriever()
 
+# Every request is bounded by a timeout so a slow query returns 504 rather than hanging.
+RETRIEVAL_TIMEOUT_S = float(os.getenv("RETRIEVAL_TIMEOUT_S", "10"))
+_EXECUTOR = ThreadPoolExecutor(max_workers=int(os.getenv("RETRIEVAL_WORKERS", "4")))
+
+
+def with_timeout(fn, *args, timeout: float = None):
+    """Run fn with a wall-clock timeout; raise HTTP 504 if it overruns."""
+    fut = _EXECUTOR.submit(fn, *args)
+    try:
+        return fut.result(timeout=timeout if timeout is not None else RETRIEVAL_TIMEOUT_S)
+    except FuturesTimeout:
+        raise HTTPException(status_code=504, detail="retrieval timed out")
+
 
 @app.post("/v1/search", response_model=SearchResponse)
 def search(req: SearchRequest) -> SearchResponse:
-    resp = _retriever.search(req)
+    try:
+        resp = with_timeout(_retriever.search, req)
+    except HTTPException:
+        metrics.REQUESTS.labels(endpoint="search", status="timeout").inc()
+        raise
     metrics.SEARCH_LATENCY.observe(resp.latency_ms / 1000.0)
     metrics.RESULTS_PER_QUERY.observe(resp.count)
     (metrics.CACHE_HITS if resp.cache_hit else metrics.CACHE_MISSES).inc()
@@ -59,18 +80,25 @@ def prometheus_metrics() -> Response:
 
 @app.get("/health", response_model=Health)
 def health() -> JSONResponse:
+    """Liveness: 200 as long as the process is up (never flaps while ingest is still building)."""
+    return JSONResponse(status_code=200, content=Health(
+        status="ok", model_loaded=True, index_version=_retriever.index_version()).model_dump())
+
+
+@app.get("/ready", response_model=Health)
+def ready() -> JSONResponse:
+    """Readiness: 200 only once the index is openable and non-empty (what compose waits on)."""
     try:
         count = _retriever.col.count()
         index_openable = True
     except Exception:
         count = 0
         index_openable = False
-    version = _retriever.index_version()
     ok = index_openable and count > 0
     h = Health(
         status="ok" if ok else "not_ready",
-        model_loaded=True,  # model loads lazily on first query; container bakes it in
+        model_loaded=True,
         index_openable=index_openable,
-        index_version=version,
+        index_version=_retriever.index_version(),
     )
     return JSONResponse(status_code=200 if ok else 503, content=h.model_dump())

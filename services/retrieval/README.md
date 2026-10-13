@@ -15,7 +15,13 @@ uvicorn services.retrieval.app:app --port 8001
 | `GET /v1/chunks/{chunk_id}` | resolve a chunk; `?quote_span=` verifies the span is a substring |
 | `GET /v1/clauses/{doc_id}/{clause_id}` | fetch by positional clause id |
 | `GET /v1/index/info` | freshness + per-doc info from `index_info.json` |
-| `GET /health` | ok once the index is openable and non-empty |
+| `GET /health` | **liveness** — always 200 while the process is up (never flaps during ingest) |
+| `GET /ready` | **readiness** — 200 only once the index is openable and non-empty (what compose waits on) |
+
+## Hardening (Slice 7)
+Every `/v1/search` is bounded by `RETRIEVAL_TIMEOUT_S` (default 10s) → 504 on overrun. An empty
+index is handled gracefully (search returns `count: 0`, lookups 404; `/ready` stays 503). The
+Dockerfile healthcheck probes `/ready`.
 
 ## Metrics
 `GET /metrics` exposes Prometheus series (`orcas_` prefix): `orcas_retrieval_requests_total`,
