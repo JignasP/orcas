@@ -111,7 +111,21 @@ Then tell me and I'll compute SHA-256 + text-layer, fill `MANIFEST.yaml`, and ti
 **Handoff:** this satisfies the Day-12 "retrieval container with health + /metrics" handoff to Mitesh + Jignas (compose wiring is Jignas's).
 
 ## Slice 3 — Web client v0 (Days 11–14)
-_No entries yet._
+
+### 2026-10-13 — web client + fake gateway, end-to-end verified
+
+**Did**
+- `services/web/static/` — vanilla-JS single page (no build step): demo presets (#10 §4.1 bank FD, MF redemption, insurance/out-of-corpus), complaint form, submit → poll (`GET /v1/runs/{id}` every 1s to terminal) → renders determination (route, regulator, entity, basis, citations with doc/clause/chunk/quote, escalation, verification). Gateway base URL configurable (localStorage / input), defaults to same-origin.
+- `services/web/fake_gateway.py` — dev-only FastAPI fake of the gateway contract (`POST /v1/complaints` → 202 `{run_id,status_url}`; `GET /v1/runs/{id}` → `run_status.v1` with `determination.v1`). Time-based queued→running→completed (no threads). Canned determinations keyed on text; the §4.1 case returns the **real pinned citations** (p1w1 / p1w0 / p6w0). Serves the static client same-origin (no CORS) so it runs with zero other services.
+- `services/web/Dockerfile` (nginx:alpine serving static) + README.
+
+**Why a fake gateway:** the real gateway (Jignas) has no committed schema yet (`contracts/` holds only my `retrieval.openapi.yaml`). Built against the documented contract per the plan ("20-line fake server").
+
+**Verified (real uvicorn server, not just TestClient):** `GET /` serves the page; POST bank-FD complaint → poll `queued→running→completed` → `refer_to_other_regulator / RBI / bank` with citations `[p1w1, p1w0, p6w0]`. 6 web tests + 18 retrieval = **24 pass**.
+
+**Deferred to Slice 7 (as planned):** expandable full passage text, escalation-path detail, feedback buttons (`POST /v1/runs/{id}/feedback`). Browser visual check is for the user to eyeball; data path is verified.
+
+**Day-14 skeleton note:** against the real stack, serve `static/` (nginx image) and set the gateway base to the published gateway (e.g. `http://localhost:8000`); cross-origin needs CORS on Jignas's gateway.
 
 ## Slice 4 — Structure-aware ingestion + retrieval hardening (Days 15–22)
 _No entries yet._

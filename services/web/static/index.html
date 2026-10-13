@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ORCAS — Complaint Routing (web client v0)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>ORCAS</h1>
+    <p class="sub">Orchestrated Regulatory Complaint Analysis &amp; Routing — synthetic complaints only.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="row">
+        <label for="gateway">Gateway base URL</label>
+        <input id="gateway" type="text" placeholder="(same origin)" />
+      </div>
+
+      <div class="row">
+        <label for="preset">Demo preset</label>
+        <select id="preset">
+          <option value="">— choose a preset —</option>
+          <option value="bank_fd">#10 §4.1 bank fixed deposit → RBI</option>
+          <option value="mf">Mutual fund redemption delay → SEBI</option>
+          <option value="out_of_corpus">#5 Insurance (out of corpus) → escalate</option>
+        </select>
+      </div>
+
+      <form id="complaint-form">
+        <div class="grid">
+          <div class="row">
+            <label for="client_id">Client ID</label>
+            <input id="client_id" value="demo-client" />
+          </div>
+          <div class="row">
+            <label for="channel">Channel</label>
+            <select id="channel">
+              <option>web</option><option>email</option><option>phone</option><option>branch</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="date_of_event">Date of event</label>
+            <input id="date_of_event" type="date" />
+          </div>
+          <div class="row">
+            <label for="date_filed">Date filed</label>
+            <input id="date_filed" type="date" />
+          </div>
+        </div>
+        <div class="row">
+          <label for="text">Complaint text</label>
+          <textarea id="text" rows="5" minlength="30" maxlength="4000"
+            placeholder="Describe the grievance (min 30 chars)…"></textarea>
+        </div>
+        <label class="inline"><input id="is_synthetic" type="checkbox" checked /> This is synthetic data</label>
+        <button id="submit" type="submit">Submit complaint</button>
+      </form>
+    </section>
+
+    <section class="card" id="status-card" hidden>
+      <h2>Run status</h2>
+      <p>Run ID: <code id="run-id"></code> · Status: <span id="status" class="badge"></span></p>
+      <div id="result"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
