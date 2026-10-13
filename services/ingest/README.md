@@ -10,12 +10,17 @@ python -m services.ingest --reindex-if-changed # idempotent full pass (no-op whe
 python -m services.ingest --re-embed --model-tag minilm-l6-v2
 ```
 
-## Design (v0)
+## Design
 - **Idempotent:** chunk `id = sha256(doc_id | clause_id | text | model_tag)`. A second run upserts the
   same ids and reports `no changes (idempotent)`; re-chunking deletes a document's stale ids.
-- **Naive chunking:** fixed-size word windows (default 180 words, 40 overlap) with a positional
-  `clause_id` (`p{page}w{window}`). Structure-aware, clause-aligned segmentation with heading paths,
-  scope cards and entity/product metadata is **Slice 4**.
+- **Chunking strategies** (`--strategy`):
+  - `clause` (default): structure-aware, clause-aligned — real `clause_id` + `heading_path`,
+    preamble captured, long clauses split into `#k` sub-chunks, plus one **scope card** per framework.
+    Chunks tagged with inferred `entity_types[]` / `product_types[]`. See `docs/work/tahir/chunking.md`.
+  - `fixed`: fixed-size word windows (`--chunk-words`/`--overlap`), positional `clause_id` — the A/B baseline.
+- **Re-embedding (no re-parse):** `--re-embed --model-tag X` re-embeds the stored chunk texts under
+  tag `X` by id. Same tag → vectors replaced in place (ids/count stable); a new tag → new id set,
+  old-tag chunks removed. No PDF is re-parsed.
 - **Freshness:** writes `data/index_info.json` (built_at, model_tag, per-doc chunk counts, throughput,
   `index_version`) which the retrieval service serves at `/v1/index/info`.
 - Chroma persistence dir: `ORCAS_CHROMA_DIR` (default `./data/chroma`). Nothing hard-codes paths/model ids.

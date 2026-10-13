@@ -1,7 +1,7 @@
 {
   "schema": "orcas.retrieval_fixtures.v0",
   "generated_note": "Real passages retrieved from the SHA-pinned corpus (corpus/MANIFEST.yaml). quote spans are exact substrings of the named chunk, so resolve_citation/quote_span checks pass. Delivered to Mitesh for FakeRetrievalClient (TAHIR.md handoff, Day 8).",
-  "index_version": "minilm-l6-v2.20261013T040344Z.606",
+  "index_version": "minilm-l6-v2.clause.20261013T074855Z.637",
   "model_tag": "minilm-l6-v2",
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "fixtures": [
@@ -16,8 +16,8 @@
         {
           "doc_id": "sebi_scores_master_circular",
           "framework": "SEBI",
-          "clause_id": "p1w1",
-          "chunk_id": "ae8861c58c329fc7062bef1db8c34b7cf6efbf1398ed39367f0efd2815d42d7f",
+          "clause_id": "2",
+          "chunk_id": "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e",
           "quote": "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster if these grievances are taken up directly with the entity concerned at the first instance. Accordingly, it is now mandatory for investors to"
         }
       ],
@@ -25,16 +25,16 @@
         {
           "doc_id": "rbi_integrated_ombudsman_scheme_2021",
           "framework": "RBI",
-          "clause_id": "p1w0",
-          "chunk_id": "801da99662534d0c3a0f0e8cd188d1394aee534a498b2a08a140cfa5ea9faf91",
+          "clause_id": "preamble",
+          "chunk_id": "c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0",
           "quote": "regulated by Reserve Bank of India in an expeditious and cost-effective manner under Section 35A of the Banking Regulation Act, 1949 (10 of 1949), Section 45L of the Reserve Bank of India Act, 1934 (2 of 1934) and Section 18 of the Payment"
         },
         {
           "doc_id": "rbi_integrated_ombudsman_scheme_2021",
           "framework": "RBI",
-          "clause_id": "p6w0",
-          "chunk_id": "7b4481e134cbf5696953bd16b43861b2c2fe762584e280c55423ab1a7a0fb53e",
-          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c). 10. Grounds for non-maintainability of a Complaint (1) N o complaint for deficiency in service"
+          "clause_id": "9",
+          "chunk_id": "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64",
+          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c)."
         }
       ],
       "notes": "Naive single search surfaces the SEBI SCORES passage (apparent). The deciding provisions are the RBI IOS scope ('entities regulated by Reserve Bank') + Grounds of Complaint ('deficiency in service'). Framework swap SEBI->RBI fixes it."
@@ -50,8 +50,8 @@
         {
           "doc_id": "sebi_scores_master_circular",
           "framework": "SEBI",
-          "clause_id": "p1w1",
-          "chunk_id": "ae8861c58c329fc7062bef1db8c34b7cf6efbf1398ed39367f0efd2815d42d7f",
+          "clause_id": "2",
+          "chunk_id": "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e",
           "quote": "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster if these grievances are taken up directly with the entity concerned at the first instance. Accordingly, it is now mandatory for investors to"
         }
       ],
@@ -59,16 +59,16 @@
         {
           "doc_id": "rbi_integrated_ombudsman_scheme_2021",
           "framework": "RBI",
-          "clause_id": "p1w0",
-          "chunk_id": "801da99662534d0c3a0f0e8cd188d1394aee534a498b2a08a140cfa5ea9faf91",
+          "clause_id": "preamble",
+          "chunk_id": "c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0",
           "quote": "regulated by Reserve Bank of India in an expeditious and cost-effective manner under Section 35A of the Banking Regulation Act, 1949 (10 of 1949), Section 45L of the Reserve Bank of India Act, 1934 (2 of 1934) and Section 18 of the Payment"
         },
         {
           "doc_id": "rbi_integrated_ombudsman_scheme_2021",
           "framework": "RBI",
-          "clause_id": "p6w0",
-          "chunk_id": "7b4481e134cbf5696953bd16b43861b2c2fe762584e280c55423ab1a7a0fb53e",
-          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c). 10. Grounds for non-maintainability of a Complaint (1) N o complaint for deficiency in service"
+          "clause_id": "9",
+          "chunk_id": "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64",
+          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c)."
         }
       ],
       "notes": "Paraphrase of the §4.1 bank-FD reference case; same expected routing and supporting passages."
@@ -84,8 +84,8 @@
         {
           "doc_id": "sebi_scores_master_circular",
           "framework": "SEBI",
-          "clause_id": "p1w1",
-          "chunk_id": "ae8861c58c329fc7062bef1db8c34b7cf6efbf1398ed39367f0efd2815d42d7f",
+          "clause_id": "2",
+          "chunk_id": "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e",
           "quote": "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster if these grievances are taken up directly with the entity concerned at the first instance. Accordingly, it is now mandatory for investors to"
         }
       ],
@@ -93,16 +93,16 @@
         {
           "doc_id": "rbi_integrated_ombudsman_scheme_2021",
           "framework": "RBI",
-          "clause_id": "p1w0",
-          "chunk_id": "801da99662534d0c3a0f0e8cd188d1394aee534a498b2a08a140cfa5ea9faf91",
+          "clause_id": "preamble",
+          "chunk_id": "c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0",
           "quote": "regulated by Reserve Bank of India in an expeditious and cost-effective manner under Section 35A of the Banking Regulation Act, 1949 (10 of 1949), Section 45L of the Reserve Bank of India Act, 1934 (2 of 1934) and Section 18 of the Payment"
         },
         {
           "doc_id": "rbi_integrated_ombudsman_scheme_2021",
           "framework": "RBI",
-          "clause_id": "p6w0",
-          "chunk_id": "7b4481e134cbf5696953bd16b43861b2c2fe762584e280c55423ab1a7a0fb53e",
-          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c). 10. Grounds for non-maintainability of a Complaint (1) N o complaint for deficiency in service"
+          "clause_id": "9",
+          "chunk_id": "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64",
+          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c)."
         }
       ],
       "notes": "Paraphrase of the §4.1 bank-FD reference case; same expected routing and supporting passages."
@@ -118,9 +118,9 @@
         {
           "doc_id": "sebi_mutual_funds_regulations_1996",
           "framework": "SEBI",
-          "clause_id": "p101w2",
-          "chunk_id": "15ba01942594c43b68bb5795ecb90c08d606016215c91142c269e9dbf65b4e8e",
-          "quote": "grievances; (v) appointed a registrar to an issue and share transfer agent registered under the Securities and Exchange Board of India (Regist rars to an Issue and Share Transfer Agents) Regulations, 1993 and laid down parameters for their"
+          "clause_id": "24-2#15",
+          "chunk_id": "9cc879c9e0d9031dfa3c2bee3aee967c06a87ca77ada9e281528d50bc93d6244",
+          "quote": "Head Office of the mutual fund is situated; and (ii) the unit holders are given an option to exit at the prevailing Net Asset Value without any exit load.] 122[(27) The asset management company shall put in place an institutional"
         }
       ],
       "notes": "Supporting passage located via retrieval (keyword 'grievances'). Review against the clause before using as an eval label."
@@ -136,9 +136,9 @@
         {
           "doc_id": "sebi_scores_master_circular",
           "framework": "SEBI",
-          "clause_id": "p1w1",
-          "chunk_id": "ae8861c58c329fc7062bef1db8c34b7cf6efbf1398ed39367f0efd2815d42d7f",
-          "quote": "intermediaries and recognised MIIs that such investor grievances may be resolved faster if these grievances are taken up directly with the entity concerned at the first instance. Accordingly, it is now mandatory for investors to first take"
+          "clause_id": "12",
+          "chunk_id": "7fd586b5dbaac73dd88b6bce780ef7f835d00b8a1c4fb0bdef4f2886815e1b6b",
+          "quote": "intermediaries shall continue to be routed through the platforms of the concerned Stock Exchange/Depository. B. SCORES Authentication for companies intending to list their securities on SEBI recognized stock exchanges"
         }
       ],
       "notes": "Supporting passage located via retrieval (keyword 'intermediaries'). Review against the clause before using as an eval label."
@@ -154,9 +154,9 @@
         {
           "doc_id": "sebi_scores_master_circular",
           "framework": "SEBI",
-          "clause_id": "p9w1",
-          "chunk_id": "7c9374de59ed79544670566d9943f207fd042ec483b67b5a62f8e72302907c91",
-          "quote": "transfer 17. Non receipt of securities in public/ rights issue 18. Non receipt of shares after conversion/ endorsement/ consolidation/ splitting 19. Non receipt of shares after transfer 20. Non receipt of shares after transmission 21. Non"
+          "clause_id": "16-2",
+          "chunk_id": "29aabfd115fe10fdcce800ec55abd1e62011b0b465b6506d2e044cb54d431073",
+          "quote": "transfer"
         }
       ],
       "notes": "Supporting passage located via retrieval (keyword 'transfer'). Review against the clause before using as an eval label."
@@ -172,9 +172,9 @@
         {
           "doc_id": "sebi_scores_master_circular",
           "framework": "SEBI",
-          "clause_id": "p5w1",
-          "chunk_id": "069e91650a6bc30a223f6eab5b53f78dded5105385541e3a5b0bef20e8b220a5",
-          "quote": "demat account of the promoter(s). 29. The depository(ies) shall immediately freeze such demat accounts and also intimate the promoter(s) about the details of non-compliances resulting in freezing of their demat accounts. 30. In case the"
+          "clause_id": "29",
+          "chunk_id": "3c09b42601da1d463a634af09e80d0a57c0f0a0687cd1d808a5314c46a464f6d",
+          "quote": "demat accounts and also intimate the promoter(s) about the details of non-compliances resulting in freezing of their demat accounts."
         }
       ],
       "notes": "Supporting passage located via retrieval (keyword 'demat'). Review against the clause before using as an eval label."
@@ -190,9 +190,9 @@
         {
           "doc_id": "sebi_scores_master_circular",
           "framework": "SEBI",
-          "clause_id": "p9w1",
-          "chunk_id": "7c9374de59ed79544670566d9943f207fd042ec483b67b5a62f8e72302907c91",
-          "quote": "dividend in physical mode instead of electronic mode 24. Receipt of shares in physical mode instead of electronic mode 25. Demat/Remat 26. Complaints of any other nature as may be informed from time to time However, the stock exchanges"
+          "clause_id": "3-2",
+          "chunk_id": "ad5183bb098dce32442eba37fa8f2fcb7f0a52d64ee21e7418ac73653bcaac6f",
+          "quote": "Dividend"
         }
       ],
       "notes": "Supporting passage located via retrieval (keyword 'dividend'). Review against the clause before using as an eval label."
@@ -208,9 +208,9 @@
         {
           "doc_id": "rbi_integrated_ombudsman_scheme_2021",
           "framework": "RBI",
-          "clause_id": "p6w0",
-          "chunk_id": "7b4481e134cbf5696953bd16b43861b2c2fe762584e280c55423ab1a7a0fb53e",
-          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c). 10. Grounds for non-maintainability of a Complaint (1) N o complaint for deficiency in service"
+          "clause_id": "9",
+          "chunk_id": "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64",
+          "quote": "deficiency in service may file a complaint under the Scheme personally or through an authorised representative as defined under clause 3(1)(c)."
         }
       ],
       "notes": "Supporting passage located via retrieval (keyword 'deficiency in service'). Review against the clause before using as an eval label."

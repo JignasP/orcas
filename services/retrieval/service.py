@@ -1,8 +1,9 @@
 """Retrieval logic over Chroma. Pure functions the FastAPI app wraps.
 
-v0 scope: dense search with framework/doc_id/chunk_type filters, chunk resolution
-(with quote-span verification), clause lookup and index info. Hybrid (dense+BM25)
-and entity_type/product_type filtering arrive with Slice-4 metadata.
+Slice-4 scope: dense OR hybrid (dense+BM25, RRF-fused) search; scalar filters
+(framework/doc_id/chunk_type) pushed to Chroma; entity_type/product_type applied as
+post-filters (they are list-valued metadata, so Chroma equality can't express them);
+chunk resolution with quote-span verification; clause lookup; index info.
 """
 from __future__ import annotations
 
@@ -12,17 +13,18 @@ from typing import Any, Dict, List, Optional
 from services.corpus_common import store
 from services.corpus_common.embedding import embed_query
 
+from .hybrid import BM25Index, rrf_fuse
 from .models import (
     Chunk,
     Clause,
     IndexDoc,
     IndexInfo,
     Passage,
+    SearchMode,
     SearchRequest,
     SearchResponse,
 )
 
-# Filters we can push down to Chroma as scalar metadata equality in v0.
 _SCALAR_FILTERS = ("framework", "doc_id", "chunk_type")
 
 
@@ -35,14 +37,12 @@ def _build_where(filters) -> Optional[Dict[str, Any]]:
         if key in data:
             val = data[key]
             clauses.append({key: getattr(val, "value", val)})
-    # entity_type / product_type are list-valued metadata (JSON-encoded) in v0 and
-    # cannot be filtered by Chroma equality yet; they are intentionally ignored here.
     if not clauses:
         return None
     return clauses[0] if len(clauses) == 1 else {"$and": clauses}
 
 
-def _passage_from(cid: str, text: str, meta: Dict[str, Any], distance: float) -> Passage:
+def _passage_from(cid: str, text: str, meta: Dict[str, Any], score: float) -> Passage:
     meta = store.decode_metadata(meta)
     return Passage(
         chunk_id=cid,
@@ -57,14 +57,27 @@ def _passage_from(cid: str, text: str, meta: Dict[str, Any], distance: float) ->
         product_types=meta.get("product_types", []),
         version=meta.get("version", ""),
         text=text,
-        score=round(1.0 - float(distance), 6),  # cosine distance -> similarity
+        score=round(float(score), 6),
         source_clause_chunk_id=meta.get("source_clause_chunk_id"),
     )
+
+
+def _passes_post_filter(p: Passage, filters) -> bool:
+    if not filters:
+        return True
+    et = getattr(filters.entity_type, "value", filters.entity_type) if filters.entity_type else None
+    pt = filters.product_type
+    if et and et not in (p.entity_types or []):
+        return False
+    if pt and pt not in (p.product_types or []):
+        return False
+    return True
 
 
 class Retriever:
     def __init__(self, collection=None):
         self._col = collection
+        self._bm25: Optional[BM25Index] = None
 
     @property
     def col(self):
@@ -73,15 +86,18 @@ class Retriever:
         return self._col
 
     def index_version(self) -> str:
-        info = store.read_index_info() or {}
-        return info.get("index_version", "")
+        return (store.read_index_info() or {}).get("index_version", "")
 
-    def search(self, req: SearchRequest) -> SearchResponse:
-        t0 = time.time()
-        where = _build_where(req.filters)
+    def _bm25_index(self) -> BM25Index:
+        if self._bm25 is None:
+            data = self.col.get(include=["documents"])
+            self._bm25 = BM25Index(data["ids"], data["documents"])
+        return self._bm25
+
+    def _dense_pool(self, query: str, where, n: int):
         res = self.col.query(
-            query_embeddings=[embed_query(req.query)],
-            n_results=req.k,
+            query_embeddings=[embed_query(query)],
+            n_results=n,
             where=where,
             include=["documents", "metadatas", "distances"],
         )
@@ -89,9 +105,42 @@ class Retriever:
         docs = (res.get("documents") or [[]])[0]
         metas = (res.get("metadatas") or [[]])[0]
         dists = (res.get("distances") or [[]])[0]
-        passages = [
-            _passage_from(cid, docs[i], metas[i], dists[i]) for i, cid in enumerate(ids)
-        ]
+        pool = {}
+        for i, cid in enumerate(ids):
+            pool[cid] = (docs[i], metas[i], 1.0 - float(dists[i]))
+        return ids, pool
+
+    def search(self, req: SearchRequest) -> SearchResponse:
+        t0 = time.time()
+        where = _build_where(req.filters)
+        pool_n = min(50, max(req.k * 4, 20))
+
+        dense_ids, pool = self._dense_pool(req.query, where, pool_n)
+
+        if req.mode == SearchMode.hybrid:
+            bm25_hits = self._bm25_index().query(req.query, pool_n)
+            bm25_ids = [cid for cid, _ in bm25_hits]
+            # fetch metadata/text for bm25-only ids
+            missing = [cid for cid in bm25_ids if cid not in pool]
+            if missing:
+                got = self.col.get(ids=missing, include=["documents", "metadatas"])
+                for j, cid in enumerate(got["ids"]):
+                    pool[cid] = (got["documents"][j], got["metadatas"][j], 0.0)
+            fused = rrf_fuse([dense_ids, bm25_ids])
+            ordered = sorted(fused, key=lambda c: fused[c], reverse=True)
+            scored = [(cid, fused[cid]) for cid in ordered if cid in pool]
+        else:
+            scored = [(cid, pool[cid][2]) for cid in dense_ids]
+
+        passages: List[Passage] = []
+        for cid, score in scored:
+            text, meta, _ = pool[cid]
+            p = _passage_from(cid, text, meta, score)
+            if _passes_post_filter(p, req.filters):
+                passages.append(p)
+            if len(passages) >= req.k:
+                break
+
         return SearchResponse(
             query_normalized=" ".join(req.query.lower().split()),
             mode=req.mode,

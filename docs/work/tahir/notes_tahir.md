@@ -128,7 +128,33 @@ Then tell me and I'll compute SHA-256 + text-layer, fill `MANIFEST.yaml`, and ti
 **Day-14 skeleton note:** against the real stack, serve `static/` (nginx image) and set the gateway base to the published gateway (e.g. `http://localhost:8000`); cross-origin needs CORS on Jignas's gateway.
 
 ## Slice 4 — Structure-aware ingestion + retrieval hardening (Days 15–22)
-_No entries yet._
+
+### 2026-10-13 — clause-aligned retrieval, scope cards, hybrid A/B, re-embed, scenarios v0
+
+**Built**
+- `services/ingest/segment.py` — clause-aligned segmentation: regex clause anchors (`9. Grounds…`, `7B.`) + `CHAPTER` detection over flowing extracted text; real `clause_id` + `heading_path`; **preamble captured** (RBI scope sentence lives there); long clauses → `#k` sub-chunks; duplicate clause nums disambiguated (`-2`).
+- `services/ingest/metadata.py` — keyword `entity_types`/`product_types` inference; **scope cards** (one per framework, `chunk_type=scope_card`, carry `source_clause_chunk_id` → citations resolve to the clause, not the card).
+- `services/ingest/cli.py` — `--strategy clause|fixed` (clause default); scope-card generation; **real `--re-embed --model-tag X`** (reads stored chunks, re-embeds by id, no re-parse; same tag → in-place, new tag → migrate + drop old).
+- `services/retrieval/hybrid.py` + `service.py` — entity/product **post-filters** (list-valued metadata can't use Chroma equality), `mode=hybrid` (dense+BM25, RRF).
+- Production index migrated naive→clause: **637 chunks** (+2 scope cards). Fixtures regenerated with real clause ids (SEBI `2` apparent; RBI `preamble` scope + `9` grounds). RBI grounds now retrieves at **0.809** (was ~0.63 naive).
+
+**Chunking A/B (`python -m eval.benchmark_chunking`)** — 6 topical framework-filtered probes:
+| strategy/mode | recall@5 | recall@10 | mean_hit_score |
+|---|---|---|---|
+| fixed/dense | 1.00 | 1.00 | 0.650 |
+| clause/dense | 0.833 | 0.833 | **0.719** |
+| clause/hybrid | 0.833 | 0.833 | n/a |
+
+Honest finding (→ report "what didn't work"): fixed-window wins *raw* recall@k (bigger chunks contain more text), but clause-aligned wins **ranking sharpness** + gives **citable clause-level provisions** (what verification/§4.1 need). **Hybrid: no recall gain → `hybrid_enabled=false` default** (tier-3 "keep only if gain"), still available via `mode`. Full write-up in `docs/work/tahir/chunking.md`. Decision: ship clause-aligned.
+
+**Deliverable:** `eval/scenarios.yaml` v0 — 10 scenarios (8 from fixtures + out-of-corpus insurance + prompt-injection), each with supporting_passage (clause id + quote) where applicable. **→ Mitesh (dev) + Jignas (load-test payloads), Day 20.**
+
+**Tests:** +11 (segment/metadata/scope-cards, entity/product filters, hybrid, re-embed in-place, scenarios resolve). **35 total pass.**
+
+**Notes / follow-ups**
+- Eval-1 package (merged) still cites the old naive ids `p1w0/p6w0`; live source of truth is now the clause index (`preamble`/`9`). Not rewriting the merged point-in-time doc; scenarios + fixtures are current.
+- `mf_redemption_delay` supporting passage still weak (clause `24-2#15`) — re-pick in Slice 5.
+- Segmentation is a heuristic (noisy titles on dense index pages) — documented in `chunking.md`.
 
 ## Slice 5 — Evaluation harness + baseline numbers (Days 23–30)
 _No entries yet._
