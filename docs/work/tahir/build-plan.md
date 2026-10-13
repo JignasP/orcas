@@ -53,7 +53,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 1 — Ingest v0 + Retrieval v0 + the §4.1 fixtures
 **Days 4–8 · the first end-to-end "search works" slice**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — ingest v0 (606 chunks, idempotent) + retrieval v0 (`/v1/search`, `/v1/chunks`, `/v1/clauses`, `/v1/index/info`, `/health`) built & tested (16 tests pass); §4.1 passages located; `tests/fixtures/retrieval_fixtures.json` (9 fixtures) delivered for Mitesh. Structure-aware chunking/metadata/hybrid deferred to Slice 4 as planned.
 
 **Goal:** a naive but real pipeline that indexes the corpus and answers a search query, plus the real §4.1 passages handed to Mitesh.
 
