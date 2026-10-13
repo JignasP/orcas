@@ -221,7 +221,16 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 **Demo readiness:** items #2 (valid request, citations resolve), #10 (§4.1 passages + routed answer) and the #5 answerable/unanswerable are all drivable from the client now.
 
 ## Slice 8 — Report sections + freeze (Days 41–43)
-_No entries yet._
+
+### 2026-10-13 — report consolidated + freeze
+
+**Did:** wrote `docs/work/tahir/report-sections.md` consolidating the freeze-ready report: (A) corpus, (B) chunking + benchmark, (C) evaluation (baseline + deliberate-change before/after + cache + live), (D) **what did not work** (honest failures/tradeoffs), (E) DoD checklist.
+
+**DoD verified at freeze:** `make test` → 60 passed; `make eval` → four metrics + route accuracy reproduce (G 0.911 / CR 0.907 / F 0.933 / halluc 0.267); running log complete; `make ingest|eval|test` single-target reproducible.
+
+**Freeze:** slices 0–7 shipped (PRs #2–#9). Open items are joint integration/handoffs, logged, not blocking Tahir's deliverables: wire live scorer → Jignas's Postgres/Grafana; swap Mitesh's agent in as the eval SUT (independent label metrics); build retrieval Docker image in CI; peer-review scenario labels; re-pick the MF servicing supporting passage.
+
+**Next:** Slice 9 = rehearsal / bug-fixes only (no new features).
 
 ## Slice 9 — Rehearsal (Days 44–50)
 _No entries yet._
