@@ -1,0 +1,458 @@
+openapi: 3.0.3
+info:
+  title: ORCAS Retrieval Service API
+  version: "1.0.0"
+  description: >
+    Read-only retrieval API over the ORCAS corpus (Chroma + local MiniLM embeddings).
+
+    Producer: Tahir (services/retrieval). Consumers: the agent worker (Mitesh) and the
+    evaluation harness / web client (Tahir).
+
+    Contract status: FROZEN at the Day-3 sync. Any change requires an ADR in
+    docs/decisions/ and approval from all three members (see README §Contribution rules).
+
+    Conventions:
+    - All business endpoints are under /v1.
+    - No endpoint mutates the index; the index is written only by the `ingest` one-shot service.
+    - Citations in a determination MUST resolve to a *source-clause* chunk, never to a scope card.
+      Scope cards (chunk_type = "scope_card") are finding aids only.
+    - Base URL is environment-specific and injected via config; it is never hard-coded (D4).
+
+tags:
+  - name: retrieval
+    description: Search and lookup over the corpus
+  - name: ops
+    description: Health and metrics
+
+paths:
+  /v1/search:
+    post:
+      tags: [retrieval]
+      operationId: search
+      summary: Semantic (and optionally hybrid) search over the corpus
+      description: >
+        Returns the top-k passages for a query, optionally filtered by framework, document,
+        entity type or product type, in dense or hybrid (dense + BM25) mode. The response is
+        cacheable by (normalised query, filters, index_version); `cache_hit` reports whether
+        this response was served from the retrieval cache (D7).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            examples:
+              bank_fd_reference_case:
+                summary: The §4.1 reference case, framework-swapped to RBI
+                value:
+                  query: "bank fixed deposit interest lower than promised, bank app"
+                  k: 8
+                  mode: dense
+                  filters:
+                    framework: RBI
+                    entity_type: bank
+      responses:
+        '200':
+          description: Ranked passages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '422':
+          description: Invalid request (e.g. empty query, k out of range, unknown enum value)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/clauses/{doc_id}/{clause_id}:
+    get:
+      tags: [retrieval]
+      operationId: getClause
+      summary: Fetch a single clause by id (cross-reference following)
+      description: >
+        Returns the full text and metadata of one clause, plus the ids of the chunks derived
+        from it. Used by the Researcher's `get_clause` tool to follow references found inside
+        retrieved passages.
+      parameters:
+        - name: doc_id
+          in: path
+          required: true
+          schema: { type: string }
+          example: sebi_scores_master_circular_2023
+        - name: clause_id
+          in: path
+          required: true
+          schema: { type: string }
+          example: "4.1"
+      responses:
+        '200':
+          description: The clause
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Clause'
+        '404':
+          description: No such clause in this document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/chunks/{chunk_id}:
+    get:
+      tags: [retrieval]
+      operationId: getChunk
+      summary: Resolve a chunk by id (citation verification)
+      description: >
+        Returns a chunk by its content-hash id. Used by the Verifier's `resolve_citation`
+        tool and by the eval harness to confirm a citation resolves. If `quote_span` is
+        supplied, the response reports whether that exact span occurs in the chunk text, so
+        the caller can verify a citation in one round-trip.
+      parameters:
+        - name: chunk_id
+          in: path
+          required: true
+          schema: { type: string }
+          example: "9f2c1a...e7"
+        - name: quote_span
+          in: query
+          required: false
+          description: Exact text the caller claims came from this chunk; verified as a substring.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The chunk
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chunk'
+        '404':
+          description: No chunk with this id (citation does not resolve)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/index/info:
+    get:
+      tags: [retrieval]
+      operationId: getIndexInfo
+      summary: Index freshness and build metadata
+      description: >
+        Build timestamp, embedding model tag, total chunk count, and per-document version /
+        chunk-count / text-layer information. The `index_version` string here is the value
+        stamped into every determination and used as part of cache keys (freshness, D2).
+      responses:
+        '200':
+          description: Index metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndexInfo'
+
+  /health:
+    get:
+      tags: [ops]
+      operationId: health
+      summary: Liveness / readiness probe
+      description: >
+        Returns ok once the embedding model is loaded and the Chroma collection is openable.
+        Used by docker-compose healthchecks and depends_on.
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Not ready (model still loading or index unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /metrics:
+    get:
+      tags: [ops]
+      operationId: metrics
+      summary: Prometheus metrics (orcas_ prefix)
+      description: >
+        Exposes, at minimum: retrieval latency histogram, cache hit ratio, results-per-query,
+        index build timestamp (orcas_index_built_timestamp), chunk count (orcas_index_chunks),
+        and ingest throughput. Scraped by Prometheus.
+      responses:
+        '200':
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema: { type: string }
+
+components:
+  schemas:
+
+    Framework:
+      type: string
+      enum: [SEBI, RBI]
+      description: The regulator whose corpus the chunk belongs to.
+
+    EntityType:
+      type: string
+      description: Aligned with determination.v1 entity_type enum.
+      enum: [broker, mutual_fund, registrar, listed_company, depository, bank, other, unknown]
+
+    ChunkType:
+      type: string
+      enum: [clause, scope_card]
+      description: >
+        "clause" = a source-clause chunk (citations must resolve to these).
+        "scope_card" = a derived "what this framework covers" finding aid; never a citation target.
+
+    SearchMode:
+      type: string
+      enum: [dense, hybrid]
+      default: dense
+      description: dense = embedding similarity only; hybrid = dense + BM25 (enabled only if the A/B shows gain).
+
+    SearchFilters:
+      type: object
+      additionalProperties: false
+      description: All filters are optional and ANDed together.
+      properties:
+        framework:
+          $ref: '#/components/schemas/Framework'
+        doc_id:
+          type: string
+        entity_type:
+          $ref: '#/components/schemas/EntityType'
+        product_type:
+          type: string
+          description: e.g. "fixed_deposit", "mutual_fund_unit", "demat_account".
+        chunk_type:
+          $ref: '#/components/schemas/ChunkType'
+
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        k:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 8
+        mode:
+          $ref: '#/components/schemas/SearchMode'
+        filters:
+          $ref: '#/components/schemas/SearchFilters'
+
+    Passage:
+      type: object
+      description: One ranked search hit. `text` is the chunk body; `score` is the similarity/fusion score.
+      required: [chunk_id, doc_id, framework, text, score, chunk_type]
+      properties:
+        chunk_id:
+          type: string
+          description: Content-hash id = sha256(doc_id + clause_id + text + model_tag).
+        doc_id:
+          type: string
+        doc_title:
+          type: string
+        circular_ref:
+          type: string
+          description: Human-facing reference (e.g. circular number / regulation citation) for the determination.
+        framework:
+          $ref: '#/components/schemas/Framework'
+        clause_id:
+          type: string
+        heading_path:
+          type: array
+          items: { type: string }
+          description: e.g. ["Chapter III", "Investor Servicing", "4.1"].
+        chunk_type:
+          $ref: '#/components/schemas/ChunkType'
+        entity_types:
+          type: array
+          items: { $ref: '#/components/schemas/EntityType' }
+        product_types:
+          type: array
+          items: { type: string }
+        version:
+          type: string
+        text:
+          type: string
+        score:
+          type: number
+          format: float
+        source_clause_chunk_id:
+          type: string
+          description: >
+            Present only when chunk_type = scope_card: the id of the source-clause chunk this
+            finding aid points to, so the agent can cite the clause rather than the card.
+
+    SearchResponse:
+      type: object
+      required: [results, index_version, query_normalized, mode, count]
+      properties:
+        query_normalized:
+          type: string
+          description: The query after normalisation; part of the cache key.
+        mode:
+          $ref: '#/components/schemas/SearchMode'
+        index_version:
+          type: string
+        count:
+          type: integer
+        cache_hit:
+          type: boolean
+        latency_ms:
+          type: number
+          format: float
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/Passage' }
+
+    Clause:
+      type: object
+      required: [doc_id, clause_id, framework, text]
+      properties:
+        doc_id:
+          type: string
+        clause_id:
+          type: string
+        doc_title:
+          type: string
+        circular_ref:
+          type: string
+        framework:
+          $ref: '#/components/schemas/Framework'
+        heading_path:
+          type: array
+          items: { type: string }
+        version:
+          type: string
+        text:
+          type: string
+        chunk_ids:
+          type: array
+          description: Ids of the chunks derived from this clause.
+          items: { type: string }
+
+    Chunk:
+      type: object
+      required: [chunk_id, doc_id, framework, text, chunk_type, model_tag]
+      properties:
+        chunk_id:
+          type: string
+        doc_id:
+          type: string
+        doc_title:
+          type: string
+        circular_ref:
+          type: string
+        framework:
+          $ref: '#/components/schemas/Framework'
+        clause_id:
+          type: string
+        heading_path:
+          type: array
+          items: { type: string }
+        chunk_type:
+          $ref: '#/components/schemas/ChunkType'
+        entity_types:
+          type: array
+          items: { $ref: '#/components/schemas/EntityType' }
+        product_types:
+          type: array
+          items: { type: string }
+        version:
+          type: string
+        model_tag:
+          type: string
+          description: Embedding model tag this chunk was embedded under (re-embedding key).
+        text:
+          type: string
+        quote_span_found:
+          type: boolean
+          description: >
+            Present only when the `quote_span` query parameter was supplied: true iff that exact
+            span is a substring of `text`. Lets the Verifier confirm a citation in one call.
+
+    IndexDoc:
+      type: object
+      required: [doc_id, title, framework]
+      properties:
+        doc_id:
+          type: string
+        title:
+          type: string
+        framework:
+          $ref: '#/components/schemas/Framework'
+        version:
+          type: string
+          description: Version/date pinned in corpus/MANIFEST.yaml.
+        chunk_count:
+          type: integer
+        has_text_layer:
+          type: boolean
+        ocr_applied:
+          type: boolean
+        source_sha256:
+          type: string
+
+    IndexInfo:
+      type: object
+      required: [index_version, built_at, model_tag, chunk_count, documents]
+      properties:
+        index_version:
+          type: string
+          description: Opaque version string stamped into every determination and used in cache keys.
+        built_at:
+          type: string
+          format: date-time
+        model_tag:
+          type: string
+        embedding_model:
+          type: string
+          example: sentence-transformers/all-MiniLM-L6-v2
+        distance_metric:
+          type: string
+          example: cosine
+        hybrid_enabled:
+          type: boolean
+        chunk_count:
+          type: integer
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/IndexDoc' }
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, not_ready]
+        model_loaded:
+          type: boolean
+        index_openable:
+          type: boolean
+        index_version:
+          type: string
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Short machine-readable error slug.
+        detail:
+          type: string
+        code:
+          type: integer

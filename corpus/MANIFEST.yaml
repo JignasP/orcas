@@ -1,0 +1,106 @@
+# ORCAS corpus manifest
+#
+# Single source of truth for the raw regulatory documents under corpus/raw/.
+# Every document is pinned by the version actually downloaded (SEBI re-issues master
+# circulars; RBI amends schemes). Never fabricate checksums or versions — a field is
+# either the real value of the file on disk or left null with status: pending_download.
+#
+# Fields per document:
+#   doc_id          stable id used as the Chroma doc_id and in citations
+#   title           official title
+#   issuer          SEBI | RBI
+#   framework       SEBI | RBI  (used by the retrieval `framework` filter)
+#   source_url      the exact URL the file was downloaded from
+#   version         version/date as printed on/declared by the document
+#   downloaded_at   ISO date the file was fetched
+#   sha256          sha256 of the file in corpus/raw/ (real, computed)
+#   has_text_layer  true if a text layer exists (pdftotext yields real text)
+#   ocr_applied     true if we had to OCR a scanned document before indexing
+#   file            path under corpus/raw/
+#   status          indexed_ready | pending_download
+#   notes           supersession, coverage, caveats
+
+manifest_version: 0.1
+generated_at: "2026-10-12"
+
+documents:
+
+  - doc_id: sebi_mutual_funds_regulations_1996
+    title: "SEBI (Mutual Funds) Regulations, 1996"
+    issuer: SEBI
+    framework: SEBI
+    source_url: "https://www.sebi.gov.in/sebi_data/attachdocs/jan-2026/1768571780322.pdf"
+    version: "Consolidated as updated to Jan 2026 (162 pp.)"
+    downloaded_at: "2026-10-12"
+    sha256: "79ca5ef10599fc83e7c77fc5ba5ef7be0e493628b03c1a05dab67127ea230043"
+    has_text_layer: true
+    ocr_applied: false
+    file: raw/sebi_mutual_funds_regulations_1996.pdf
+    status: indexed_ready
+    used_for: "Mutual fund investor-servicing obligations (grievance redressal, compliance officer, unitholder servicing)."
+    notes: >
+      Downloaded cleanly from sebi.gov.in; text layer confirmed (~438k chars extracted
+      across 162 pages). This is the consolidated regulation, not the original 1996
+      gazette; the investor-servicing / grievance-redressal provisions are what we index.
+
+  - doc_id: rbi_integrated_ombudsman_scheme_2021
+    title: "Reserve Bank - Integrated Ombudsman Scheme, 2021"
+    issuer: RBI
+    framework: RBI
+    source_url: "https://rbidocs.rbi.org.in/rdocs/content/pdfs/RBIOS2021_121121.pdf"
+    amendment_url: "https://rbidocs.rbi.org.in/rdocs/content/pdfs/RBIOS2021_amendments05082022.pdf"
+    version: "Base scheme, 2021 (18 pp.; notified 12-Nov-2021). 05-Aug-2022 amendments NOT included."
+    downloaded_at: "2026-10-13"
+    sha256: "a354a73bc5a374661b8bdfb35a74501d17fd86eeeac05d00e6004e6d64d69a3e"
+    has_text_layer: true
+    ocr_applied: false
+    file: raw/rbi_integrated_ombudsman_scheme_2021.pdf
+    status: indexed_ready
+    used_for: "RBI jurisdiction, the regulated entities it covers (banks, NBFCs, PSOs), and the grounds of complaint — the provision that decides the §4.1 bank-FD case."
+    notes: >
+      THE DECIDING DOCUMENT FOR THE §4.1 REFERENCE CASE. Downloaded via browser (the
+      rbidocs/website RBI hosts WAF-block automated clients). Verified: valid 18-page PDF,
+      text layer present (~32k chars), confirmed to be the Integrated Ombudsman Scheme 2021
+      covering "Regulated Entity", grounds of complaint and deficiency in service.
+      We index the BASE 2021 scheme; the 05-Aug-2022 amendment exists (amendment_url) and is
+      noted but not indexed in v0 — revisit if a scenario turns on an amended provision.
+
+  - doc_id: sebi_scores_master_circular
+    title: "Master Circular on the redressal of investor grievances through the SEBI Complaints Redress System (SCORES) platform"
+    issuer: SEBI
+    framework: SEBI
+    circular_no: "SEBI/HO/OIAE/IGRD/P/CIR/2022/0150"
+    source_url: "https://www.sebi.gov.in/legal/circulars  (Legal > Circulars; downloaded via browser by Tahir)"
+    version: "Master Circular SEBI/HO/OIAE/IGRD/P/CIR/2022/0150, dated 07-Nov-2022 (11 pp.)"
+    downloaded_at: "2026-10-13"
+    sha256: "78a729d83966baf738eabcbbd5fa1e70cdfde929743416ba7a4e3567afe25f8b"
+    has_text_layer: true
+    ocr_applied: false
+    file: raw/sebi_scores_master_circular.pdf
+    status: indexed_ready
+    used_for: "SEBI jurisdiction + entity-wise grievance-handling obligations and timelines (brokers, mutual funds, registrars/RTAs, listed companies, depositories)."
+    superseded_by: "SEBI/HO/OIAE/IGRD/CIR/P/2023/156 dated 20-Sep-2023 (SCORES 2.0)"
+    notes: >
+      Verified: valid 11-page PDF, text layer present (~23k chars), a genuine consolidated
+      "Master Circular" addressed to listed companies, registered intermediaries (brokers,
+      depository participants, mutual funds/AMCs, registrars/RTAs), stock exchanges and
+      depositories — confirming F3 coverage of registrar/listed-company/depository.
+      SUPERSESSION: this Nov-2022 master circular was later superseded by SCORES 2.0
+      (circular 2023/156, 20-Sep-2023), which changed operational timelines (e.g. redressal
+      window reduced to 21 days). We index the 2022 master circular because it is a clean,
+      self-contained scope document ideal for clause-aligned chunking and sufficient for the
+      §4.1 jurisdiction reasoning. ACTION FOR EVAL (Slice 5): before labelling any timeline-
+      sensitive SEBI scenario, verify the current timeline against 2023/156 rather than
+      trusting this doc's numbers; citations still resolve to what is in the corpus.
+
+# ---------------------------------------------------------------------------
+# Coverage check (TAHIR.md Slice 0): does the SEBI grievance master circular cover
+# registrar / listed company / depository, or is an extra source needed?
+#
+# CONFIRMED (2026-10-13): the SCORES Master Circular (2022/0150) is addressed to and routes
+# complaints against listed companies, registered intermediaries (stockbrokers, depository
+# participants, mutual funds/AMCs, and registrars/share-transfer agents — "registered
+# intermediary" is the umbrella covering RTAs), stock exchanges and depositories. A single
+# SEBI grievance master circular therefore covers F3's registrar / listed-company /
+# depository categories. No extra SEBI source is needed for v0.
+# ---------------------------------------------------------------------------
