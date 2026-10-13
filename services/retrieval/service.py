@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from services.corpus_common import store
 from services.corpus_common.embedding import embed_query
 
+from .cache import get_cache, make_key
 from .hybrid import BM25Index, rrf_fuse
 from .models import (
     Chunk,
@@ -75,9 +76,10 @@ def _passes_post_filter(p: Passage, filters) -> bool:
 
 
 class Retriever:
-    def __init__(self, collection=None):
+    def __init__(self, collection=None, cache=None, use_cache: bool = True):
         self._col = collection
         self._bm25: Optional[BM25Index] = None
+        self._cache = cache if cache is not None else (get_cache() if use_cache else None)
 
     @property
     def col(self):
@@ -112,6 +114,16 @@ class Retriever:
 
     def search(self, req: SearchRequest) -> SearchResponse:
         t0 = time.time()
+        filters_dict = req.filters.model_dump(exclude_none=True) if req.filters else {}
+        key = make_key(req.query, filters_dict, req.mode.value, req.k, self.index_version())
+        if self._cache is not None:
+            cached = self._cache.get(key)
+            if cached is not None:
+                resp = SearchResponse(**cached)
+                resp.cache_hit = True
+                resp.latency_ms = round((time.time() - t0) * 1000, 2)
+                return resp
+
         where = _build_where(req.filters)
         pool_n = min(50, max(req.k * 4, 20))
 
@@ -141,7 +153,7 @@ class Retriever:
             if len(passages) >= req.k:
                 break
 
-        return SearchResponse(
+        resp = SearchResponse(
             query_normalized=" ".join(req.query.lower().split()),
             mode=req.mode,
             index_version=self.index_version(),
@@ -150,6 +162,9 @@ class Retriever:
             latency_ms=round((time.time() - t0) * 1000, 2),
             results=passages,
         )
+        if self._cache is not None:
+            self._cache.set(key, resp.model_dump(mode="json"))
+        return resp
 
     def get_chunk(self, chunk_id: str, quote_span: Optional[str] = None) -> Optional[Chunk]:
         res = self.col.get(ids=[chunk_id], include=["documents", "metadatas"])

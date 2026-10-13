@@ -75,6 +75,56 @@ Label metrics are computed over **all** scenarios (no judge → more trustworthy
   README). Whether TruLens' built-in feedback functions work with the chosen free-tier LLM judge, or
   need the custom provider wrapper, is settled here in favour of the custom provider.
 
-## 7. Next (Slice 6)
-Deliberate-change before/after on the same set (hypothesis + all four metrics), the L2 prompt-variant
-comparison, retrieval-cache effect, and the live scorer.
+## 7. Deliberate change, variants, cache, live scoring (Slice 6)
+
+### 7.1 Deliberate change — retrieval framework filter OFF → ON (`python -m eval.experiment`)
+**Hypothesis:** filtering retrieval to the responsible regulator (the "framework swap" that fixes
+§4.1) raises groundedness / faithfulness and lowers hallucination — because unfiltered search
+surfaces the *wrong* framework for bank cases (SEBI for a bank-FD complaint), so the RBI routing
+claim isn't supported. Same 22 scenarios, all four metrics:
+
+| metric | before (filter off) | after (filter on) | delta |
+|---|---|---|---|
+| groundedness | 0.889 | 0.911 | **+0.022** |
+| faithfulness | 0.911 | 0.933 | **+0.022** |
+| hallucination_rate | 0.333 | 0.267 | **−0.066** |
+| context_relevance | 0.973 | 0.907 | −0.066 |
+| route_accuracy | 1.000 | 1.000 | 0.000 |
+
+**Honest reading:** the filter does what we hoped for the grounding-relevant metrics (groundedness
+up, hallucination down) but *costs* a little context relevance — unfiltered retrieval returns the
+most query-similar passages regardless of regulator, which scores as "relevant" even when it is the
+wrong framework. Net: the change is worth it (grounding + hallucination are what verification cares
+about), and the context-relevance dip is the honest cost. This is the §4.1 difficulty, quantified.
+
+### 7.2 Variant comparison (L2 harness) — dense vs hybrid
+The same harness runs ≥2 named configs; **Mitesh's reflect-prompt variants plug in as configs when
+his agent is the SUT**. Validated here on retrieval mode: dense wins (groundedness tie 0.911/0.911,
+but context_relevance 0.907 vs 0.760 and no hallucination change) — consistent with the Slice-4
+decision to keep hybrid off by default.
+
+### 7.3 Retrieval cache effect (D7) (`python -m eval.cache_effect`)
+Key = `sha256(normalised_query | filters | mode | k | index_version)`; Redis when `REDIS_URL` set,
+else in-process TTL dict.
+
+| | hit ratio | p50 | p95 |
+|---|---|---|---|
+| cold | 0.00 | 17.76 ms | 41.96 ms |
+| warm | 1.00 | 0.09 ms | 0.12 ms |
+
+Warm p95 ≈ **0.1 ms** vs cold ≈ 42 ms. The `index_version` in the key means a re-index transparently
+invalidates stale entries. (Coordinate the production Redis numbers with Jignas's load test.)
+
+### 7.4 Live scoring (L6) (`python -m eval.live_scorer`)
+`live_scorer.py` samples `LIVE_SCORE_SAMPLE_RATE` (default 20%) of **completed** runs
+(deterministic stable-hash sampling), scores each with the same judge/metrics, and writes rows to an
+`eval_scores` store; feedback (up/down) is aggregated alongside. RunStore / EvalScoreStore /
+FeedbackStore are in-memory seams with the shape of Jignas's Postgres tables (the brief: run against
+an in-memory RunStore until the DB exists). Demo over the scenarios: 15 completed → 3 sampled,
+mean groundedness 1.0, hallucination 0.0, feedback up-rate 0.727. Jignas charts `eval_scores` as
+"quality over time".
+
+## 8. Next
+Hand Jignas the final scenario payloads (Slice 7 handoff) and wire the live scorer to the real
+RunStore / `eval_scores` table once Jignas's Postgres lands; swap Mitesh's agent in as the SUT for
+independent label metrics.

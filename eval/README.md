@@ -4,6 +4,9 @@
 make eval                      # or: python -m eval.run_eval  (writes eval/results/latest.json)
 python -m eval.run_eval --tag baseline
 python -m eval.benchmark_chunking   # Slice-4 chunking A/B
+python -m eval.experiment           # deliberate-change before/after + variant comparison
+python -m eval.cache_effect         # retrieval cache hit ratio + latency (cold vs warm)
+python -m eval.live_scorer          # L6 live sampled scoring + feedback aggregation
 python -m eval.trulens_eval         # TruLens feedback-provider integration (optional)
 ```
 

@@ -161,7 +161,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 6 — Experiments, retrieval cache, live scoring
 **Days 31–36 · the before/after evidence the report needs**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — deliberate-change before/after (framework filter off→on: groundedness +0.022, faithfulness +0.022, hallucination −0.066, context-relevance −0.066 honest cost); variant-comparison harness (dense vs hybrid; prompt variants plug in as configs); retrieval cache (D7, key incl index_version; Redis-or-in-memory; warm p95 ~0.1ms vs cold ~42ms); live scorer (L6, 20% sampling, eval_scores + feedback aggregation, in-memory RunStore seam). 53 tests pass; results in `evaluation.md`.
 
 **Goal:** one deliberate-change experiment, the prompt-variant comparison, measured cache effect, and live quality scoring.
 
