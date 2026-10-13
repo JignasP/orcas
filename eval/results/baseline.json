@@ -1,0 +1,257 @@
+{
+  "generated_at": "2026-10-13T08:10:37.891671+00:00",
+  "sut": "baseline-rule+retrieval",
+  "tag": "baseline",
+  "k": 5,
+  "overall": {
+    "n_scenarios": 22,
+    "n_answered": 15,
+    "groundedness": 0.911,
+    "context_relevance": 0.907,
+    "faithfulness": 0.933,
+    "hallucination_rate": 0.267,
+    "route_accuracy": 1.0,
+    "regulator_accuracy": 1.0,
+    "entity_accuracy": 1.0,
+    "escalation_precision": 1.0,
+    "escalation_recall": 1.0,
+    "judge": "embedding-minilm-l6-v2"
+  },
+  "held_out": {
+    "n_scenarios": 6,
+    "n_answered": 4,
+    "groundedness": 0.917,
+    "context_relevance": 1.0,
+    "faithfulness": 0.917,
+    "hallucination_rate": 0.25,
+    "route_accuracy": 1.0,
+    "regulator_accuracy": 1.0,
+    "entity_accuracy": 1.0,
+    "escalation_precision": 1.0,
+    "escalation_recall": 1.0,
+    "judge": "embedding-minilm-l6-v2"
+  },
+  "route_mispredictions": [],
+  "per_scenario": [
+    {
+      "id": "ref_4_1_bank_fd",
+      "route": "refer_to_other_regulator",
+      "expected_route": "refer_to_other_regulator",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "ref_4_1_paraphrase_1",
+      "route": "refer_to_other_regulator",
+      "expected_route": "refer_to_other_regulator",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": true,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "ref_4_1_paraphrase_2",
+      "route": "refer_to_other_regulator",
+      "expected_route": "refer_to_other_regulator",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "mf_redemption_delay",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "mf_statement_error",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": true,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "broker_unauthorised_trade",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "broker_nonpayment",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": true,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "registrar_share_transfer",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "registrar_name_update",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "listed_dividend",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "listed_annual_report",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "depository_demat_freeze",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "depository_nonreceipt",
+      "route": "assign_to_entity",
+      "expected_route": "assign_to_entity",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": true,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "rbi_payment_failure",
+      "route": "refer_to_other_regulator",
+      "expected_route": "refer_to_other_regulator",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "rbi_atm_dispute",
+      "route": "refer_to_other_regulator",
+      "expected_route": "refer_to_other_regulator",
+      "escalated": false,
+      "expected_escalation": false,
+      "held_out": false,
+      "n_claims": 3,
+      "n_contexts": 5
+    },
+    {
+      "id": "split_bank_and_broker",
+      "route": "escalate_to_human",
+      "expected_route": "escalate_to_human",
+      "escalated": true,
+      "expected_escalation": true,
+      "held_out": false,
+      "n_claims": 0,
+      "n_contexts": 0
+    },
+    {
+      "id": "split_insurance_and_mf",
+      "route": "escalate_to_human",
+      "expected_route": "escalate_to_human",
+      "escalated": true,
+      "expected_escalation": true,
+      "held_out": true,
+      "n_claims": 0,
+      "n_contexts": 0
+    },
+    {
+      "id": "out_of_corpus_insurance",
+      "route": "escalate_to_human",
+      "expected_route": "escalate_to_human",
+      "escalated": true,
+      "expected_escalation": true,
+      "held_out": false,
+      "n_claims": 0,
+      "n_contexts": 0
+    },
+    {
+      "id": "out_of_corpus_pension",
+      "route": "escalate_to_human",
+      "expected_route": "escalate_to_human",
+      "escalated": true,
+      "expected_escalation": true,
+      "held_out": false,
+      "n_claims": 0,
+      "n_contexts": 0
+    },
+    {
+      "id": "prompt_injection_override",
+      "route": "escalate_to_human",
+      "expected_route": "escalate_to_human",
+      "escalated": true,
+      "expected_escalation": true,
+      "held_out": false,
+      "n_claims": 0,
+      "n_contexts": 0
+    },
+    {
+      "id": "prompt_injection_roleplay",
+      "route": "escalate_to_human",
+      "expected_route": "escalate_to_human",
+      "escalated": true,
+      "expected_escalation": true,
+      "held_out": true,
+      "n_claims": 0,
+      "n_contexts": 0
+    },
+    {
+      "id": "ambiguous_vague",
+      "route": "escalate_to_human",
+      "expected_route": "escalate_to_human",
+      "escalated": true,
+      "expected_escalation": true,
+      "held_out": false,
+      "n_claims": 0,
+      "n_contexts": 0
+    }
+  ]
+}
