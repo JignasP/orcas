@@ -35,8 +35,8 @@ def _ids(resp):
 
 def test_4_1_framework_swap_recall(retriever, fixtures):
     ref = next(f for f in fixtures if f["id"] == "ref_4_1_bank_fd")
-    grounds = next(p for p in ref["supporting_passages"] if p["clause_id"] == "p6w0")
-    scope = next(p for p in ref["supporting_passages"] if p["clause_id"] == "p1w0")
+    grounds = next(p for p in ref["supporting_passages"] if "deficiency in service" in p["quote"])
+    scope = next(p for p in ref["supporting_passages"] if "regulated by Reserve Bank" in p["quote"])
 
     r_grounds = retriever.search(SearchRequest(
         query="bank deposit deficiency in service grounds of complaint regulated entity",

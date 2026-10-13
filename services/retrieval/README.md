@@ -36,8 +36,14 @@ curl -s localhost:8001/health && curl -s localhost:8001/metrics | head
 ```
 `/health` returns 503 until the index volume is populated, then 200.
 
-## v0 limitations (resolved in later slices)
-- `mode=hybrid` and `entity_type`/`product_type` filters are accepted but not yet effective —
-  entity/product metadata and BM25 hybrid land in **Slice 4**.
-- `/metrics` (Prometheus) and the Redis retrieval cache land in **Slice 4 / Slice 6**.
-- Scores are cosine similarity (`1 - distance`).
+## Filters & modes (Slice 4)
+- Scalar filters `framework` / `doc_id` / `chunk_type` are pushed to Chroma.
+- `entity_type` / `product_type` are **post-filters** (they are list-valued metadata; Chroma
+  equality can't express them) — the service over-fetches, then filters.
+- `mode=dense` (default) or `mode=hybrid` (dense + BM25, reciprocal-rank fused). Per the Slice-4
+  A/B, hybrid showed no recall gain on this corpus, so `index/info.hybrid_enabled=false`; it stays
+  available via `mode`. See `docs/work/tahir/chunking.md`.
+- Scores are cosine similarity (`1 - distance`) for dense; RRF fusion scores for hybrid.
+
+## Remaining (later slices)
+- Redis retrieval cache + cache-hit metrics → **Slice 6**.

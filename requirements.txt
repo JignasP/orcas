@@ -6,6 +6,7 @@ chromadb>=0.5,<0.6
 sentence-transformers>=2.7,<4
 pypdf>=4.2
 pyyaml>=6.0
+rank-bm25>=0.2.2
 
 # Retrieval service API
 fastapi>=0.110

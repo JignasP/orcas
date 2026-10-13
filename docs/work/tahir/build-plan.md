@@ -110,7 +110,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 4 — Structure-aware ingestion + retrieval hardening
 **Days 15–22 · the "real" retrieval, where L1 is earned**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — clause-aligned segmentation (real clause_id + heading_path + preamble), entity/product metadata, scope cards (→ source clause), `--strategy clause|fixed`, real `--re-embed` (by id, no re-parse), entity/product post-filters + hybrid (BM25+RRF) via `mode`. Chunking A/B benchmarked + documented (`chunking.md`): clause-aligned shipped as default (sharper ranking + citable provisions; hybrid no gain → off by default). `eval/scenarios.yaml` v0 (10). 35 tests pass. Freshness metrics already from Slices 1–2.
 
 **Goal:** clause-aligned retrieval with metadata, scope cards, idempotency, re-embedding, and freshness metrics — plus the first 10 scenarios.
 

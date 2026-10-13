@@ -33,4 +33,4 @@ def test_index_chunks_gauge_matches(client):
     client.get("/metrics")
     from services.retrieval import metrics as m
 
-    assert m.INDEX_CHUNKS._value.get() == 606
+    assert m.INDEX_CHUNKS._value.get() == store.get_collection().count()

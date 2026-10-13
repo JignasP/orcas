@@ -31,7 +31,8 @@ def test_index_info(client):
     r = client.get("/v1/index/info")
     assert r.status_code == 200
     body = r.json()
-    assert body["chunk_count"] == 606
+    assert body["chunk_count"] == store.get_collection().count()
+    assert body["chunk_count"] > 0
     assert len(body["documents"]) == 3
     assert body["model_tag"] == "minilm-l6-v2"
 
