@@ -195,7 +195,7 @@ Everything I build must run with these stand-ins until the real thing exists:
 ## Slice 8 — Report sections + freeze
 **Days 41–43**
 
-- [ ] **Slice complete**
+- [x] **Slice complete** — consolidated `report-sections.md` (corpus, chunking, evaluation, what-did-not-work) + DoD checklist verified (`make test` 60 pass; `make eval` four metrics + route acc; running log kept; single `make` targets reproduce). Frozen: slices 0–7 merged (PRs #2–#9).
 
 **Goal:** write my report sections and freeze.
 
