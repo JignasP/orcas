@@ -21,3 +21,11 @@ python -m services.ingest --re-embed --model-tag minilm-l6-v2
 - Chroma persistence dir: `ORCAS_CHROMA_DIR` (default `./data/chroma`). Nothing hard-codes paths/model ids.
 
 Current corpus → 606 chunks: SEBI MF Regs 539, RBI IOS 39, SEBI SCORES 28.
+
+## Docker
+```bash
+docker build -f services/ingest/Dockerfile -t orcas-ingest .
+docker run --rm -v orcas-data:/data orcas-ingest   # writes Chroma index + index_info.json to /data
+```
+The embedding model and the corpus PDFs are baked into the image; it writes to the `/data`
+volume the retrieval service reads. Idempotent: re-running on the same corpus is a no-op.

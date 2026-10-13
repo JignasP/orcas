@@ -96,7 +96,19 @@ Then tell me and I'll compute SHA-256 + text-layer, fill `MANIFEST.yaml`, and ti
 - Build artifacts (`data/`) git-ignored — rebuilt by ingest, never committed.
 
 ## Slice 2 — Evaluation 1 package + retrieval containerized (Days 9–13)
-_No entries yet._
+
+### 2026-10-13 — Eval-1 package + containerization
+
+**Did**
+- **`docs/work/tahir/evaluation-1-package.md`** — the graded deliverable: corpus confirmation table (versions/SHA/text-layer, F3 coverage confirmed, SCORES 2.0 supersession caveat), the §4.1 apparent passage (SEBI SCORES `p1w1`) + two deciding RBI passages (`p1w0` scope, `p6w0` grounds) with exact quotes + chunk_ids, the reference `determination.v1` answer/test values, project plan + status, reproduce commands.
+- **`/metrics`** on retrieval (prometheus-client): `orcas_retrieval_requests_total`, `_latency_seconds`, `_results_per_query`, `_cache_{hits,misses}_total` (miss-only until Slice 6), `orcas_index_chunks`, `orcas_index_built_timestamp`. 2 new tests → **18 pass**.
+- **Dockerfiles** `services/retrieval/Dockerfile` + `services/ingest/Dockerfile` (+ root `.dockerignore`): python:3.11-slim, `libgomp1`, **embedding model baked at build** (`RUN python -c "SentenceTransformer(...)"`) so no runtime download; retrieval reads the Chroma index from the `/data` volume ingest writes; retrieval HEALTHCHECK on `/health`. Build/run documented in service READMEs.
+
+**Validated**
+- Container env wiring: `ORCAS_DATA_DIR=/data` (ingest) and `ORCAS_CHROMA_DIR`/`ORCAS_INDEX_INFO` (retrieval) resolve to `/data/chroma` + `/data/index_info.json`.
+- **Image NOT built here** — Docker daemon offline + only ~15 GiB free (a torch image is ~5-6 GB). Build on a Docker host / CI. Model-bake command itself is proven (same call works locally).
+
+**Handoff:** this satisfies the Day-12 "retrieval container with health + /metrics" handoff to Mitesh + Jignas (compose wiring is Jignas's).
 
 ## Slice 3 — Web client v0 (Days 11–14)
 _No entries yet._
