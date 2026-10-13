@@ -7,6 +7,10 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
+
+# Build artifacts (rebuilt by `python -m services.ingest`; written only by ingest)
+data/
 
 # Env / secrets
 .env

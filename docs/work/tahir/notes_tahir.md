@@ -67,7 +67,33 @@ Then tell me and I'll compute SHA-256 + text-layer, fill `MANIFEST.yaml`, and ti
 **Slice 0 = DONE.** Open follow-up: `contracts/retrieval.openapi.yaml` + ADR 0001 still need the 3-way Day-3 freeze sign-off (Mitesh + Jignas); `contracts/` is Jignas's editing domain → route via PR, not direct to main.
 
 ## Slice 1 — Ingest v0 + Retrieval v0 + §4.1 fixtures (Days 4–8)
-_No entries yet._
+
+### 2026-10-13 — ingest + retrieval working end-to-end; fixtures delivered
+
+**Stack:** Python 3.12 venv; chromadb 0.5.23, sentence-transformers 3.4.1, torch 2.14.1, fastapi 0.143, pypdf 6.20.1. Embedding `all-MiniLM-L6-v2` (model_tag `minilm-l6-v2`), cosine space, normalised vectors.
+
+**Built**
+- `services/corpus_common/` — shared primitives so ingest+retrieval can't drift: chunk-id rule, embedding, Chroma access + metadata (de)serialisation (list fields JSON-encoded because Chroma metadata must be scalar), `index_info.json` read/write.
+- `services/ingest/` — `orcas-ingest` CLI: parse (pypdf, page tracking) → naive word-window chunking (180/40) → MiniLM → Chroma upsert. **606 chunks** (SEBI MF 539, RBI 39, SEBI SCORES 28) in ~19s.
+- `services/retrieval/` — FastAPI implementing the contract: `/v1/search` (framework/doc_id/chunk_type filters), `/v1/chunks/{id}` (+`quote_span` verify), `/v1/clauses/{doc}/{clause}`, `/v1/index/info`, `/health`.
+
+**Idempotency (D2) — confirmed:** second ingest run reported `+0 new, 0 stale, no changes (idempotent)`, collection steady at 606.
+
+**§4.1 passages located (the whole point of this slice):**
+- *Apparent (SEBI, what a naive single search returns):* `sebi_scores_master_circular` `p1w1` — "listed companies, registered intermediaries and recognised MIIs…".
+- *Deciding (RBI, after framework swap):* `rbi_integrated_ombudsman_scheme_2021` `p1w0` (scope: "services provided by entities **regulated by Reserve Bank**") + `p6w0` (**Grounds of Complaint** / "deficiency in service").
+- Verified live: RBI-filtered search surfaces p6w0/p6w1 + scope; SEBI-filtered surfaces the SCORES passage. `/v1/search` + `/v1/chunks?quote_span=` round-trip works on the real uvicorn server.
+
+**Deliverable:** `tests/fixtures/retrieval_fixtures.json` — 9 fixtures (ref 4.1 + 2 paraphrases, MF, broker, registrar, depository, listed-company, RBI payment). Each passage has a full `chunk_id` + an **exact-substring quote** (so `resolve_citation`/`quote_span` checks pass). **→ Mitesh handoff (Day 8).**
+
+**Tests:** `tests/retrieval/` — 16 pass. Per-doc parse regression (page counts + markers), chunk-id idempotency + re-embed-tag disjointness, recall@k on §4.1, every fixture citation resolves w/ quote verify, HTTP smoke incl. 404 + 422.
+
+**Decisions / deferred (as planned)**
+- Naive chunking only; clause-aligned segmentation, heading paths, scope cards, entity/product metadata → **Slice 4**.
+- `mode=hybrid` + `entity_type`/`product_type` filters accepted but inert in v0 (need Slice-4 metadata/BM25).
+- `/metrics` + Redis retrieval cache → Slice 4 / Slice 6.
+- **Weak label flagged:** `mf_redemption_delay` fixture landed on a registrar-appointment clause (`p101w2`); fine as a real passage for FakeRetrievalClient, but re-pick before using as an eval label in Slice 5.
+- Build artifacts (`data/`) git-ignored — rebuilt by ingest, never committed.
 
 ## Slice 2 — Evaluation 1 package + retrieval containerized (Days 9–13)
 _No entries yet._
