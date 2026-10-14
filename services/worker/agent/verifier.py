@@ -140,7 +140,7 @@ class VerifierGraph:
             "claims_supported": len(citations),
             "attempts": attempt
         }
-        verified_draft["prompt_versions"]["verifier"] = "v1"
+        verified_draft.setdefault("prompt_versions", {})["verifier"] = "v1"
 
         return {
             "decision": "accept",
@@ -170,7 +170,7 @@ class VerifierGraph:
             "claims_supported": 0,
             "attempts": attempt
         }
-        esc_draft["prompt_versions"]["verifier"] = "v1"
+        esc_draft.setdefault("prompt_versions", {})["verifier"] = "v1"
         return {
             "decision": "escalate",
             "passed": False,

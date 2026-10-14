@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 import re
 from typing import Any, Dict, List, Optional
 import httpx
+
+logger = logging.getLogger("worker.llm_client")
 
 
 class LLMClient:
@@ -33,8 +36,9 @@ class LLMClient:
                 resp = client.post(f"{self.gateway_url}/v1/chat", json=payload)
                 if resp.status_code == 200:
                     return resp.json()
-        except Exception:
-            pass
+                logger.warning("LLM Gateway returned status %d; falling back to heuristic.", resp.status_code)
+        except Exception as exc:
+            logger.warning("LLM Gateway unreachable (%s); falling back to local heuristic.", exc)
 
         return self._local_heuristic_chat(messages, agent, step)
 
