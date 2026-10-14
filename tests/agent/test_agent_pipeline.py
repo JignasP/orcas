@@ -183,3 +183,85 @@ def test_output_filter_blocks_forbidden_phrase():
     assert sanitized["status"] == "escalated"
     assert sanitized["route"] == "escalate_to_human"
     assert sanitized["escalation"]["reason_code"] == "guardrail"
+
+
+def test_output_filter_blocks_toxic_phrase():
+    """Test guardrail detects and blocks toxic words, converting to human escalation."""
+    toxic_determination = {
+        "run_id": str(uuid.uuid4()),
+        "status": "completed",
+        "route": "assign_to_entity",
+        "regulator": "SEBI",
+        "entity_type": "broker",
+        "timeline": {"days": 30, "basis_citation_id": "c1"},
+        "basis": "The complainant is an idiot and we will murder their account access.",
+        "citations": [],
+        "escalation": None,
+        "verification": {"passed": True, "claims_checked": 1, "claims_supported": 1, "attempts": 1},
+        "prompt_versions": {},
+        "index_version": "v1",
+        "degraded": False,
+        "disposed": False
+    }
+
+    is_safe, sanitized, msg = OutputFilter.filter(toxic_determination)
+    assert is_safe is False
+    assert sanitized["disposed"] is False
+    assert sanitized["status"] == "escalated"
+    assert sanitized["route"] == "escalate_to_human"
+    assert sanitized["escalation"]["reason_code"] == "guardrail"
+    assert "toxic" in sanitized["escalation"]["reason"]
+
+
+def test_action_protocol_parsing():
+    """Test JSON action protocol fallback parsing and Pydantic validation (Req §3.4)."""
+    from services.worker.agent.action_protocol import parse_action
+
+    # Valid tool invocation
+    raw_output = '{"action": "search_corpus", "args": {"query": "broker trade dispute", "framework": "SEBI", "k": 3}}'
+    parsed = parse_action(raw_output)
+    assert parsed is not None
+    assert parsed["action"] == "search_corpus"
+    assert parsed["args"]["query"] == "broker trade dispute"
+    assert parsed["args"]["k"] == 3
+
+    # Output wrapped in conversational markdown
+    wrapped_output = 'Here is the tool I want to call:\n```json\n{"action": "get_clause", "args": {"doc_id": "sebi_scores", "clause_id": "clause_3"}}\n```'
+    parsed_wrapped = parse_action(wrapped_output)
+    assert parsed_wrapped is not None
+    assert parsed_wrapped["action"] == "get_clause"
+    assert parsed_wrapped["args"]["clause_id"] == "clause_3"
+
+    # Invalid action name
+    invalid_action = '{"action": "execute_arbitrary_code", "args": {"code": "print(1)"}}'
+    assert parse_action(invalid_action) is None
+
+    # Invalid args schema
+    invalid_args = '{"action": "search_corpus", "args": {"k": 999}}'  # missing query, k out of bounds
+    assert parse_action(invalid_args) is None
+
+
+def test_runstore_cost_accounting():
+    """Test InMemoryRunStore records token usage and cost in USD (Req L5)."""
+    from services.worker.clients.runstore import InMemoryRunStore
+
+    store = InMemoryRunStore()
+    run_id = str(uuid.uuid4())
+    store.create_run(run_id, {"test": True})
+
+    store.append_event(
+        run_id=run_id,
+        agent="researcher",
+        step="classify",
+        kind="llm_call",
+        latency_ms=120,
+        tokens={"prompt": 150, "completion": 40, "total": 190},
+        cost_usd=0.000045
+    )
+
+    events = store.get_events(run_id)
+    assert len(events) == 1
+    assert events[0]["tokens"]["total"] == 190
+    assert events[0]["cost_usd"] == 0.000045
+    assert events[0]["latency_ms"] == 120
+
