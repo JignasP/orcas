@@ -49,7 +49,9 @@ class InMemoryRunStore:
         step: str,
         kind: str,
         latency_ms: int = 0,
-        payload: Optional[Dict[str, Any]] = None
+        payload: Optional[Dict[str, Any]] = None,
+        tokens: Optional[Dict[str, int]] = None,
+        cost_usd: float = 0.0
     ) -> None:
         if run_id not in self.events:
             self.events[run_id] = []
@@ -62,6 +64,8 @@ class InMemoryRunStore:
             "step": step,
             "kind": kind,
             "latency_ms": latency_ms,
+            "tokens": tokens or {},
+            "cost_usd": cost_usd,
             "payload": payload or {}
         }
         self.events[run_id].append(event)
