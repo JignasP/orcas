@@ -10,6 +10,30 @@ from services.worker.clients.runstore import InMemoryRunStore
 
 logger = logging.getLogger("worker.tasks")
 
+# Celery app (Requirement A5 – task queue integration).
+# Import is optional so tests work without celery installed;
+# the Docker image installs it via requirements.txt.
+try:
+    from celery import Celery
+
+    celery_app = Celery(
+        "orcas",
+        broker=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"),
+        backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1"),
+    )
+    celery_app.conf.task_acks_late = True
+    celery_app.conf.task_default_queue = "orcas_tasks"
+
+    @celery_app.task(name="orcas.run_complaint", bind=True, max_retries=0, acks_late=True)
+    def run_complaint(self, run_id: str, complaint_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Celery task entrypoint – delegates to run_complaint_pipeline."""
+        return run_complaint_pipeline(run_id=run_id, complaint_data=complaint_data)
+
+except ImportError:
+    celery_app = None
+    logger.info("Celery not installed; run_complaint_pipeline available as plain function.")
+
+
 global_run_store = InMemoryRunStore()
 
 
