@@ -10,7 +10,8 @@ def test_run_store_keeps_first_terminal_result_and_sequences_events():
     store.create_run(run_id, {"text": "second"})
     assert store.get_run(run_id)["payload"] == {"text": "first"}
 
-    store.update_status(run_id, "running")
+    assert store.claim_run(run_id) is True
+    assert store.claim_run(run_id) is False
     with ThreadPoolExecutor(max_workers=5) as pool:
         list(pool.map(lambda i: store.append_event(run_id, "system", "test", "tool_call", payload={"i": i}), range(25)))
     assert [event["seq"] for event in store.get_events(run_id)] == list(range(1, 26))

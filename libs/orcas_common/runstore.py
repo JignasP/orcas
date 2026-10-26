@@ -58,6 +58,15 @@ class InMemoryRunStore:
             if status == "running" and record["started_at"] is None:
                 record["started_at"] = _now()
 
+    def claim_run(self, run_id: str) -> bool:
+        with self._lock:
+            record = self.runs[run_id]
+            if record["status"] != "queued":
+                return False
+            record["status"] = "running"
+            record["started_at"] = _now()
+            return True
+
     def complete(self, run_id: str, determination: dict[str, Any]) -> None:
         status = determination.get("status", "completed")
         if status not in TERMINAL:
@@ -159,6 +168,16 @@ class PostgresRunStore:
                 "WHERE run_id = %s AND status NOT IN ('completed', 'escalated', 'failed')",
                 (status, status, run_id),
             )
+
+    def claim_run(self, run_id: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute(
+                "UPDATE runs SET status = 'running', started_at = NOW() WHERE run_id = %s "
+                "AND (status = 'queued' OR (status = 'running' "
+                "AND (started_at IS NULL OR started_at < NOW() - INTERVAL '120 seconds'))) "
+                "RETURNING run_id", (run_id,),
+            ).fetchone()
+        return row is not None
 
     def complete(self, run_id: str, determination: dict[str, Any]) -> None:
         from psycopg.types.json import Jsonb

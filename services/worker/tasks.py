@@ -6,7 +6,9 @@ from typing import Any, Dict, Optional
 from services.worker.agent.researcher import ResearcherGraph
 from services.worker.agent.verifier import VerifierGraph
 from services.worker.guardrails.output_filter import OutputFilter
-from services.worker.clients.runstore import InMemoryRunStore
+from libs.orcas_common.runstore import InMemoryRunStore, PostgresRunStore, TERMINAL
+from libs.orcas_common.logging import configure_logging, correlation_id
+from services.worker.clients.retrieval import HttpRetrievalClient
 
 logger = logging.getLogger("worker.tasks")
 
@@ -23,11 +25,20 @@ try:
     )
     celery_app.conf.task_acks_late = True
     celery_app.conf.task_default_queue = "orcas_tasks"
+    celery_app.conf.task_reject_on_worker_lost = True
+    celery_app.conf.worker_prefetch_multiplier = 1
+    celery_app.conf.broker_transport_options = {"visibility_timeout": 180}
+    celery_app.conf.task_time_limit = 90
 
     @celery_app.task(name="orcas.run_complaint", bind=True, max_retries=0, acks_late=True)
-    def run_complaint(self, run_id: str, complaint_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def run_complaint(self, run_id: str) -> Dict[str, Any]:
         """Celery task entrypoint – delegates to run_complaint_pipeline."""
-        return run_complaint_pipeline(run_id=run_id, complaint_data=complaint_data)
+        configure_logging(os.getenv("LOG_LEVEL", "INFO"))
+        token = correlation_id.set(run_id)
+        try:
+            return run_complaint_pipeline(run_id=run_id)
+        finally:
+            correlation_id.reset(token)
 
 except ImportError:
     celery_app = None
@@ -35,6 +46,17 @@ except ImportError:
 
 
 global_run_store = InMemoryRunStore()
+
+
+def _runtime_store():
+    return PostgresRunStore() if os.getenv("DATABASE_URL") else global_run_store
+
+
+def _retrieval_client():
+    if os.getenv("RETRIEVAL_SERVICE_URL"):
+        return HttpRetrievalClient()
+    from services.worker.clients.fake_retrieval import FakeRetrievalClient
+    return FakeRetrievalClient()
 
 
 def run_complaint_pipeline(
@@ -53,8 +75,8 @@ def run_complaint_pipeline(
     4. Guardrail output filtering.
     5. Event emission for full run reconstruction (Requirement D5).
     """
-    store = run_store or global_run_store
-    r_graph = researcher_graph or ResearcherGraph()
+    store = run_store or _runtime_store()
+    r_graph = researcher_graph or ResearcherGraph(retrieval_client=_retrieval_client())
     v_graph = verifier_graph or VerifierGraph(retrieval_client=r_graph.retrieval, llm_client=r_graph.llm)
 
     record = store.get_run(run_id)
@@ -64,7 +86,10 @@ def run_complaint_pipeline(
     if not record:
         raise ValueError(f"Run ID {run_id} not found in run store.")
 
-    store.update_status(run_id, "running")
+    if record["status"] in TERMINAL:
+        return record.get("result") or record
+    if not store.claim_run(run_id):
+        return store.get_run(run_id)
     store.append_event(
         run_id=run_id,
         agent="system",
