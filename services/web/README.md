@@ -19,8 +19,9 @@ Presets: #10 §4.1 bank FD → RBI (with the real pinned citations), MF redempti
 insurance → escalate (out of corpus).
 
 ## Run against the real gateway (compose / Day-14 skeleton)
-Serve the static files (nginx image below) and set the **Gateway base URL** field to the
-published gateway, e.g. `http://localhost:8000`. (Cross-origin calls need CORS on the gateway.)
+Serve the static files with the Compose stack. On port 8080, the client defaults
+to `http://localhost:8000`; the Gateway base URL field can override it. The
+gateway allows the web origin through CORS.
 ```bash
 docker build -f services/web/Dockerfile -t orcas-web .
 docker run --rm -p 8080:80 orcas-web

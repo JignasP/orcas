@@ -139,7 +139,7 @@ class ResearcherGraph:
             "args": {
                 "query": query,
                 "framework": framework,
-                "k": 3
+                "k": 5
             }
         }
         return {

@@ -13,6 +13,39 @@ app = FastAPI(title="ORCAS LLM Stub Service", version="1.0.0")
 STUB_DELAY_MS = int(os.getenv("STUB_DELAY_MS", "1500"))
 
 
+def citation_from_evidence(prompt: str, framework: str) -> dict | None:
+    """Pick an exact quote from retrieved evidence in the draft prompt."""
+    match = re.search(r"Evidence Ledger:\s*(\[[^\r\n]*\])", prompt)
+    if not match:
+        return None
+    try:
+        ledger = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    candidates = [item for item in ledger if item.get("framework") == framework
+                  and item.get("chunk_type", "clause") != "scope_card" and item.get("text")]
+    if not candidates:
+        return None
+    keywords = ("deficiency in service", "regulated by reserve bank") if framework == "RBI" else (
+        "investor grievances", "registered intermediaries", "mutual fund"
+    )
+    selected = next((item for word in keywords for item in candidates
+                     if word in item["text"].lower()), candidates[0])
+    passage = selected["text"]
+    phrase = next((word for word in keywords if word in passage.lower()), "")
+    start = max(0, passage.lower().find(phrase) - 30) if phrase else 0
+    quote_span = passage[start:start + 180]
+    return {
+        "citation_id": "c1",
+        "doc_id": selected.get("doc_id", ""),
+        "doc_title": selected.get("doc_title", ""),
+        "circular_ref": selected.get("circular_ref", ""),
+        "clause": selected.get("clause_id", ""),
+        "chunk_id": selected["chunk_id"],
+        "quote_span": quote_span,
+    }
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -124,42 +157,25 @@ def generate_stub_reply(request: ChatRequest) -> str:
     # --- Draft Determination ---
     if "draft" in step:
         if "fixed deposit" in target_text or "bank" in target_text:
+            citation = citation_from_evidence(combined, "RBI")
             return json.dumps({
                 "route": "refer_to_other_regulator",
                 "regulator": "RBI",
                 "entity_type": "bank",
-                "timeline": {"days": 30, "basis_citation_id": "c1"},
-                "basis": "Bank fixed deposit interest dispute falls under the RBI Integrated Ombudsman Scheme (2021) for deficiencies in service [c1].",
-                "citations": [
-                    {
-                        "citation_id": "c1",
-                        "doc_id": "rbi_integrated_ombudsman_scheme_2021",
-                        "doc_title": "Reserve Bank - Integrated Ombudsman Scheme, 2021",
-                        "circular_ref": "RBI/2021-2022/126",
-                        "clause": "9",
-                        "chunk_id": "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64",
-                        "quote_span": "deficiency in service may file a complaint under the Scheme"
-                    }
-                ]
+                "timeline": None,
+                "basis": "Bank fixed deposit interest servicing should be routed under the cited RBI Ombudsman provision [c1]." if citation else "No RBI passage was retrieved for verification.",
+                "citations": [citation] if citation else []
             })
         else:
+            citation = citation_from_evidence(combined, "SEBI")
+            entity_type = "mutual_fund" if "mutual fund" in target_text else "broker"
             return json.dumps({
                 "route": "assign_to_entity",
                 "regulator": "SEBI",
-                "entity_type": "broker",
-                "timeline": {"days": 30, "basis_citation_id": "c1"},
-                "basis": "Investor grievance falls under SEBI SCORES framework with 30-day resolution timeline [c1].",
-                "citations": [
-                    {
-                        "citation_id": "c1",
-                        "doc_id": "sebi_scores_master_circular",
-                        "doc_title": "SEBI Master Circular on Investor Grievance Redressal",
-                        "circular_ref": "SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/145",
-                        "clause": "2",
-                        "chunk_id": "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e",
-                        "quote_span": "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster"
-                    }
-                ]
+                "entity_type": entity_type,
+                "timeline": None,
+                "basis": "This securities-market complaint should be reviewed under the cited SEBI guidance [c1]." if citation else "No SEBI passage was retrieved for verification.",
+                "citations": [citation] if citation else []
             })
 
     # --- Verifier Claim Check ---
