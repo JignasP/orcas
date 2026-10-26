@@ -1,0 +1,86 @@
+import json
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from libs.orcas_common.runstore import InMemoryRunStore
+from services.gateway.app import create_app
+from services.gateway.models import Complaint
+
+
+class RecordingDispatcher:
+    def __init__(self):
+        self.sent = []
+
+    def send(self, run_id):
+        self.sent.append(run_id)
+
+    def ping(self):
+        return True
+
+
+def client_and_state():
+    store = InMemoryRunStore()
+    dispatcher = RecordingDispatcher()
+    return TestClient(create_app(store=store, dispatcher=dispatcher)), store, dispatcher
+
+
+def valid_payload():
+    return {
+        "client_id": "demo-client",
+        "is_synthetic": True,
+        "channel": "web",
+        "text": "I invested in a fixed deposit through my bank app and received less interest than promised.",
+        "date_of_event": "2026-08-01",
+        "date_filed": "2026-09-01",
+    }
+
+
+def test_accepts_valid_request_and_polls_run():
+    client, store, dispatcher = client_and_state()
+    response = client.post("/v1/complaints", json=valid_payload())
+    assert response.status_code == 202
+    run_id = response.json()["run_id"]
+    assert response.json()["status_url"] == f"/v1/runs/{run_id}"
+    assert response.headers["X-Correlation-ID"] == run_id
+    assert dispatcher.sent == [run_id]
+    assert client.get(f"/v1/runs/{run_id}").json()["status"] == "queued"
+    store.update_status(run_id, "running")
+    assert client.get(f"/v1/runs/{run_id}").json()["status"] == "running"
+
+
+def test_rejects_and_quarantines_before_run_or_enqueue():
+    client, store, dispatcher = client_and_state()
+    payload = valid_payload()
+    payload["date_filed"] = "2026-07-01"
+    response = client.post("/v1/complaints", json=payload)
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["field"] == "date_filed"
+    assert store.get_quarantine(response.json()["quarantine_id"])["reason"] == "validation"
+    assert store.runs == {}
+    assert dispatcher.sent == []
+
+
+def test_rejects_bad_json_and_schema_errors_before_enqueue():
+    client, store, dispatcher = client_and_state()
+    invalid_json = client.post("/v1/complaints", content=b"{", headers={"Content-Type": "application/json"})
+    assert invalid_json.status_code == 422
+    assert store.get_quarantine(invalid_json.json()["quarantine_id"])
+
+    payload = valid_payload()
+    payload["is_synthetic"] = False
+    payload["client_id"] = "!"
+    payload["amount_disputed_inr"] = "25"
+    response = client.post("/v1/complaints", json=payload)
+    assert response.status_code == 422
+    assert {error["field"] for error in response.json()["detail"]} == {
+        "client_id", "is_synthetic", "amount_disputed_inr"
+    }
+    assert store.runs == {}
+    assert dispatcher.sent == []
+
+
+def test_request_model_tracks_frozen_schema_fields():
+    schema = json.loads((Path(__file__).parents[2] / "contracts" / "complaint.v1.schema.json").read_text())
+    assert set(Complaint.model_fields) == set(schema["properties"])
+    assert {name for name, field in Complaint.model_fields.items() if field.is_required()} == set(schema["required"])

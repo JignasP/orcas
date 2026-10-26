@@ -113,13 +113,13 @@ class InMemoryRunStore:
 
 class PostgresRunStore:
     def __init__(self, url: str | None = None) -> None:
-        self.url = url or database_url()
+        self.url = url
 
     def _connect(self):
         import psycopg
         from psycopg.rows import dict_row
 
-        return psycopg.connect(self.url, row_factory=dict_row)
+        return psycopg.connect(self.url or database_url(), row_factory=dict_row)
 
     @staticmethod
     def _record(row: dict[str, Any] | None) -> dict[str, Any] | None:
