@@ -15,9 +15,13 @@ from pydantic import ValidationError
 
 from libs.orcas_common.logging import configure_logging, correlation_id
 from libs.orcas_common.runstore import PostgresRunStore
-from services.gateway.models import Complaint, RunStatus, SubmitResponse, cross_field_errors
+from services.gateway.models import (
+    Complaint,
+    RunStatus,
+    SubmitResponse,
+    cross_field_errors,
+)
 from services.gateway.queue import CeleryDispatcher
-
 
 logger = logging.getLogger(__name__)
 

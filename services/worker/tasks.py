@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from services.worker.agent.researcher import ResearcherGraph
 from services.worker.agent.verifier import VerifierGraph
 from services.worker.guardrails.output_filter import OutputFilter
-from libs.orcas_common.runstore import InMemoryRunStore, PostgresRunStore, TERMINAL
+from libs.orcas_common.runstore import InMemoryRunStore, PostgresRunStore, RunStore, TERMINAL
 from libs.orcas_common.logging import configure_logging, correlation_id
 from services.worker.clients.retrieval import HttpRetrievalClient
 
@@ -62,7 +62,7 @@ def _retrieval_client():
 def run_complaint_pipeline(
     run_id: str,
     complaint_data: Optional[Dict[str, Any]] = None,
-    run_store: Optional[InMemoryRunStore] = None,
+    run_store: Optional[RunStore] = None,
     researcher_graph: Optional[ResearcherGraph] = None,
     verifier_graph: Optional[VerifierGraph] = None,
     inject_bad_draft: bool = False

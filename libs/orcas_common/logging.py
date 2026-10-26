@@ -6,7 +6,6 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-
 correlation_id = contextvars.ContextVar("correlation_id", default="")
 
 
