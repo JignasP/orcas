@@ -47,6 +47,10 @@ def test_accepts_valid_request_and_polls_run():
     assert client.get(f"/v1/runs/{run_id}").json()["status"] == "queued"
     store.update_status(run_id, "running")
     assert client.get(f"/v1/runs/{run_id}").json()["status"] == "running"
+    store.complete(run_id, {"status": "completed", "route": "assign_to_entity"})
+    terminal = client.get(f"/v1/runs/{run_id}").json()
+    assert terminal["status"] == "completed"
+    assert terminal["result"]["route"] == "assign_to_entity"
 
 
 def test_rejects_and_quarantines_before_run_or_enqueue():
@@ -76,6 +80,17 @@ def test_rejects_bad_json_and_schema_errors_before_enqueue():
     assert {error["field"] for error in response.json()["detail"]} == {
         "client_id", "is_synthetic", "amount_disputed_inr"
     }
+    assert store.runs == {}
+    assert dispatcher.sent == []
+
+
+def test_prior_complaint_date_is_required_when_prior_contact_is_true():
+    client, store, dispatcher = client_and_state()
+    payload = valid_payload()
+    payload["prior_complaint_to_entity"] = True
+    response = client.post("/v1/complaints", json=payload)
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["field"] == "prior_complaint_date"
     assert store.runs == {}
     assert dispatcher.sent == []
 
