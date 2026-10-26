@@ -18,7 +18,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/ingest/requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
 # Same baked model as the retrieval image (consistent embeddings, no runtime download).

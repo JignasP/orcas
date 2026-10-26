@@ -16,8 +16,8 @@ const PRESETS = {
   out_of_corpus: "My life insurance policy claim was rejected unfairly by the insurer. I want this routed for redressal.",
 };
 
-// Gateway base: remembered in localStorage, else same origin (works when the fake
-// gateway serves this page). Override live via the input for a cross-origin gateway.
+// Gateway base: the Compose web service uses port 8080 and the API uses port 8000.
+// The standalone fake gateway serves both from port 8000.
 function gatewayBase() {
   const v = $("gateway").value.trim();
   return v.replace(/\/$/, "");
@@ -30,7 +30,8 @@ function todayISO(offsetDays = 0) {
 }
 
 function init() {
-  $("gateway").value = localStorage.getItem("orcas_gateway") || "";
+  $("gateway").value = localStorage.getItem("orcas_gateway") ||
+    (window.location.port === "8080" ? `${window.location.protocol}//${window.location.hostname}:8000` : "");
   $("date_of_event").value = todayISO(-14);
   $("date_filed").value = todayISO(0);
   $("preset").addEventListener("change", (e) => {

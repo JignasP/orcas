@@ -1,0 +1,176 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orcas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orcas_demo_only}
+      POSTGRES_DB: ${POSTGRES_DB:-orcas}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    command: ["python", "-m", "libs.orcas_common.migrate"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-orcas}:${POSTGRES_PASSWORD:-orcas_demo_only}@postgres:5432/${POSTGRES_DB:-orcas}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  ingest:
+    build:
+      context: .
+      dockerfile: services/ingest/Dockerfile
+    environment:
+      ORCAS_DATA_DIR: /data
+      EMBED_MODEL: ${EMBED_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+    volumes:
+      - index_data:/data
+    restart: "no"
+
+  retrieval:
+    build:
+      context: .
+      dockerfile: services/retrieval/Dockerfile
+    environment:
+      ORCAS_CHROMA_DIR: /data/chroma
+      ORCAS_INDEX_INFO: /data/index_info.json
+      EMBED_MODEL: ${EMBED_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - index_data:/data
+    ports:
+      - "8001:8001"
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/ready"]
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
+
+  llm-stub:
+    build:
+      context: .
+      dockerfile: services/llm_stub/Dockerfile
+    environment:
+      STUB_DELAY_MS: ${STUB_DELAY_MS:-1500}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  llm-gateway:
+    build:
+      context: .
+      dockerfile: services/llm_gateway/Dockerfile
+    environment:
+      ORCAS_STUB_MODE: ${ORCAS_STUB_MODE:-true}
+      STUB_SERVICE_URL: http://llm-stub:8003
+      REDIS_URL: redis://redis:6379/0
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+    depends_on:
+      llm-stub:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-orcas}:${POSTGRES_PASSWORD:-orcas_demo_only}@postgres:5432/${POSTGRES_DB:-orcas}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      RETRIEVAL_SERVICE_URL: http://retrieval:8001
+      LLM_GATEWAY_URL: http://llm-gateway:8002
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      retrieval:
+        condition: service_healthy
+      llm-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "services.worker.tasks:celery_app", "inspect", "ping", "--timeout=5"]
+      interval: 15s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-orcas}:${POSTGRES_PASSWORD:-orcas_demo_only}@postgres:5432/${POSTGRES_DB:-orcas}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  index_data:
