@@ -1,6 +1,6 @@
 # ORCAS — convenience targets (Tahir's eval/retrieval). Jignas owns the full stack targets
 # (compose up, loadtest); this Makefile currently covers what Tahir's slices provide.
-.PHONY: ingest eval test
+.PHONY: ingest eval test demo
 
 ingest:
 	python -m services.ingest
@@ -10,3 +10,6 @@ eval:
 
 test:
 	python -m pytest tests -q
+
+demo:
+	python scripts/demo/initial_demo.py
