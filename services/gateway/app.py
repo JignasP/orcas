@@ -68,7 +68,7 @@ def create_app(store=None, dispatcher=None, limiter=None, cache=None) -> FastAPI
             "CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080"
         ).split(",") if origin.strip()],
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Correlation-ID", "Authorization"],
+        allow_headers=["Content-Type", "X-Correlation-ID", "X-Run-Cache-Bypass", "Authorization"],
     )
 
     @app.middleware("http")
