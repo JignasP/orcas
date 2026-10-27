@@ -11,6 +11,8 @@ not a claim that the system already meets it.
 - Simulate ten concurrent clients. Each submits one synthetic complaint from
   `loadtest/payloads.json` and polls every second until `completed`,
   `escalated`, or `failed`.
+- Exclude the two labelled prompt-injection payloads from the processing
+  latency mix; test their expected `422` responses separately.
 - Measure elapsed time from starting the POST to seeing a terminal response.
   Do not substitute gateway POST latency for this measurement.
 - Run at least 100 complete complaints after warmup. Report p50, p95, completed

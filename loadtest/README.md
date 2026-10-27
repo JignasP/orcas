@@ -1,15 +1,26 @@
-# loadtest — payloads handoff (Tahir → Jignas)
+# End-to-end load test
 
-`payloads.json` is the **final scenario payloads for load testing** (TAHIR.md handoff). Each entry
-is a valid `complaint.v1` request body derived from `eval/scenarios.yaml` — the realistic mix of
-complaints the system routes (bank FD, MF, broker, registrar, depository, RBI payment, split,
-out-of-corpus, injection, ambiguous).
+The declared workload and target are in [docs/slo.md](../docs/slo.md).
+`locustfile.py` submits synthetic complaints, polls to a terminal state, and
+records a separate `ORCAS complaint_end_to_end` observation. That observation
+includes queue time; the POST and GET rows are diagnostics only.
 
-Jignas owns the Locust driver and SLO; this directory just provides the request bodies. Example:
-```python
-import json, random
-PAYLOADS = json.load(open("loadtest/payloads.json"))["payloads"]
-# in a Locust task: self.client.post("/v1/complaints", json=random.choice(PAYLOADS))
+Run against a healthy stub-backed Compose stack:
+
+```sh
+python -m pip install -r loadtest/requirements.txt
+mkdir -p loadtest/results
+locust -f loadtest/locustfile.py --headless --host http://localhost:8000 \
+  --users 10 --spawn-rate 2 --run-time 15m --csv loadtest/results/baseline
 ```
-Dates are fixed and valid (`date_filed ≥ date_of_event`, not in the future) and `is_synthetic` is
-true. Malformed/guardrail payloads for the rejection tests are Jignas's to author.
+
+Repeat at higher user counts until the target fails, then use the same mix
+and duration after `docker compose up --scale worker=3`. Preserve Locust CSVs
+and the corresponding Grafana screenshots or queries with the report.
+Fixture `_` fields are removed before submission. Known injection scenarios
+are excluded from the normal processing workload and should be tested
+separately as expected `422` responses.
+
+Each request gets a unique client ID, so the rate limit does not distort this
+baseline. Cache comparisons require a separate repeated-input experiment.
+Do not report measurements until a live stack has been exercised.

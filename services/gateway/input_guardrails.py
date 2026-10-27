@@ -8,6 +8,7 @@ _INJECTION = (
     re.compile(r"\b(?:ignore|disregard|override)\s+(?:all\s+)?(?:previous|prior|above|system|developer)\s+instructions\b", re.I),
     re.compile(r"\b(?:reveal|print|show|leak)\s+(?:the\s+|your\s+)?(?:system|developer|hidden)\s+prompt\b", re.I),
     re.compile(r"\b(?:you are now|act as|pretend to be)\s+(?:the\s+)?(?:system|developer|assistant)\b", re.I),
+    re.compile(r"\byou are now\s+(?:an?\s+)?(?:unrestricted|unfiltered|uncensored|jailbroken)\s+assistant\b", re.I),
     re.compile(r"(?:<\|im_start\|>|\[/?INST\]|<\|system\|>|</?system>)", re.I),
     re.compile(r"\b(?:bypass|disable)\s+(?:the\s+|all\s+)?(?:safety|guardrails?|verification|filters?)\b", re.I),
 )
