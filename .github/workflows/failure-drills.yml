@@ -6,6 +6,7 @@ on:
       - feat/jignas/reliability-and-operations
     paths:
       - .github/workflows/failure-drills.yml
+      - scripts/benchmarks/failure_drills.py
 
 jobs:
   failure-drills:

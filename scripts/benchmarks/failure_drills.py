@@ -68,7 +68,7 @@ def wait_retrieval(timeout=90):
             with urllib.request.urlopen("http://localhost:8001/ready", timeout=3) as response:
                 if response.status == 200:
                     return
-        except (urllib.error.URLError, TimeoutError):
+        except OSError:
             pass
         time.sleep(3)
     raise TimeoutError("retrieval did not become ready")
