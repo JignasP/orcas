@@ -31,7 +31,7 @@ jobs:
       - name: Install test dependencies
         run: pip install -r services/gateway/requirements.txt langgraph pyyaml jsonschema pytest httpx ruff redis
       - name: Lint platform code
-        run: ruff check --isolated --select E4,E7,E9,F,I libs services/gateway services/metrics_exporter services/worker/tasks.py services/worker/clients/retrieval.py services/worker/clients/observed_retrieval.py services/worker/clients/llm_client.py services/retrieval/app.py services/llm_gateway/app.py scripts/doctor.py scripts/check_repository.py scripts/benchmarks loadtest/locustfile.py tests/platform
+        run: ruff check --isolated --select E4,E7,E9,F,I libs services/gateway services/metrics_exporter services/worker/tasks.py services/worker/clients/retrieval.py services/worker/clients/observed_retrieval.py services/worker/clients/llm_client.py services/retrieval/app.py services/llm_gateway/app.py scripts/doctor.py scripts/check_repository.py scripts/demo scripts/benchmarks loadtest/locustfile.py tests/platform
       - name: Test platform and agent
         run: python -m pytest tests/platform tests/agent tests/web -q
       - name: Check tracked configuration and credentials
@@ -60,6 +60,8 @@ jobs:
           exit 1
       - name: Exercise complaint intake and quarantine
         run: python scripts/demo/initial_demo.py --timeout 180
+      - name: Verify cross-service Jaeger trace
+        run: python scripts/demo/check_jaeger_trace.py --timeout 90
       - name: Verify rejected input did not create a run
         run: |
           docker compose exec -T gateway python -c "import os, psycopg; connection = psycopg.connect(os.environ['DATABASE_URL']); counts = connection.execute('SELECT (SELECT count(*) FROM runs), (SELECT count(*) FROM quarantine)').fetchone(); assert counts == (1, 1), counts"
