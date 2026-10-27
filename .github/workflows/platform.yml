@@ -40,3 +40,31 @@ jobs:
         run: python -m compileall -q loadtest/locustfile.py scripts/doctor.py
       - name: Validate Compose configuration
         run: docker compose config --quiet
+
+  compose-smoke:
+    if: github.event_name == 'pull_request'
+    needs: platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the stub-backed stack
+        run: docker compose up --build -d
+      - name: Wait for service readiness
+        run: |
+          for attempt in $(seq 1 60); do
+            if python scripts/doctor.py; then exit 0; fi
+            sleep 5
+          done
+          docker compose ps --all
+          exit 1
+      - name: Exercise complaint intake and quarantine
+        run: python scripts/demo/initial_demo.py --timeout 180
+      - name: Show service status and logs on failure
+        if: failure()
+        run: |
+          docker compose ps --all
+          docker compose logs --tail 100
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
