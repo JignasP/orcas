@@ -67,6 +67,10 @@ jobs:
       - name: Verify rejected input did not create a run
         run: |
           docker compose exec -T gateway python -c "import os, psycopg; connection = psycopg.connect(os.environ['DATABASE_URL']); counts = connection.execute('SELECT (SELECT count(*) FROM runs), (SELECT count(*) FROM quarantine)').fetchone(); assert counts == (1, 1), counts"
+      - name: Exercise input injection quarantine
+        run: |
+          python scripts/demo/check_guardrail_rejection.py
+          docker compose exec -T gateway python -c "import os, psycopg; connection = psycopg.connect(os.environ['DATABASE_URL']); counts = connection.execute('SELECT (SELECT count(*) FROM runs), (SELECT count(*) FROM quarantine)').fetchone(); assert counts == (1, 2), counts"
       - name: Show service status and logs on failure
         if: failure()
         run: |
