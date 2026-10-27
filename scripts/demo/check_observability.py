@@ -37,6 +37,12 @@ def check(prometheus_url: str, grafana_url: str) -> tuple[set[str], int]:
     dashboard = read_json(f"{grafana_url}/api/dashboards/uid/orcas-platform")["dashboard"]
     if dashboard.get("uid") != "orcas-platform" or len(dashboard.get("panels", [])) < 21:
         raise ValueError("The ORCAS dashboard was not provisioned with its expected panels")
+    for series in ("container_cpu_usage_seconds_total", "container_memory_working_set_bytes"):
+        query = urllib.parse.urlencode({"query": series})
+        result = read_json(f"{prometheus_url}/api/v1/query?{query}")
+        samples = result.get("data", {}).get("result", [])
+        print(f"{series}: {len(samples)} series; sample labels: "
+              f"{[sample.get('metric', {}) for sample in samples[:3]]}")
     return healthy_jobs, len(dashboard["panels"])
 
 
