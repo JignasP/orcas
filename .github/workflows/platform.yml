@@ -60,6 +60,9 @@ jobs:
           exit 1
       - name: Exercise complaint intake and quarantine
         run: python scripts/demo/initial_demo.py --timeout 180
+      - name: Verify rejected input did not create a run
+        run: |
+          docker compose exec -T gateway python -c "import os, psycopg; connection = psycopg.connect(os.environ['DATABASE_URL']); counts = connection.execute('SELECT (SELECT count(*) FROM runs), (SELECT count(*) FROM quarantine)').fetchone(); assert counts == (1, 1), counts"
       - name: Show service status and logs on failure
         if: failure()
         run: |
