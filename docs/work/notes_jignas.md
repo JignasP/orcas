@@ -44,3 +44,15 @@ tests, Ruff, and YAML/JSON parsing. Docker is still unavailable locally, so
 Compose startup, a cross-service Jaeger trace, load/scaling numbers, and
 controlled failure checks remain unverified. No performance or cost result has
 been inferred from the static checks.
+
+## 2026-10-27 — Clean runner smoke test
+
+GitHub Actions built the Compose stack from a clean checkout and passed all
+service readiness checks. Its first end-to-end run exposed an unregistered
+Celery task: worker tracing imported FastAPI, absent from the worker image, and
+a broad `ImportError` handler hid the failure. Commit `5672df4` corrected the
+import boundary and added a regression test. The repeat
+[Compose smoke run](https://github.com/Mitxh13/orcas/actions/runs/40450433329)
+passed: the bank fixed-deposit complaint completed as an RBI referral and a
+malformed date was quarantined. Load, scaling, trace UI inspection, and failure
+drills have not been measured on a Docker host.
