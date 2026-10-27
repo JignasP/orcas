@@ -28,5 +28,20 @@ Malformed JSON or invalid input returns HTTP `422` with field-level `detail` ent
 The quarantine ID lets the demo locate the rejection without exposing all rejected
 complaint text through a public endpoint.
 
+The gateway screens `text` and `entity_name_hint` for explicit instructions to the
+agent and threats after schema validation and before creating a run. Flagged requests
+also return `422` and are quarantined with `guardrail:injection` or
+`guardrail:toxicity`. The current labelled set contains 20 attack examples and 20
+benign complaints; 0 of the 20 benign examples were flagged. This small set is a
+regression check, not an estimate of production false-positive rate.
+
+`GET /v1/runs/{run_id}/trace` returns ordered persisted events and their total
+recorded cost. `POST /v1/runs/{run_id}/feedback` accepts `{"rating":"up|down",
+"reason":"..."}` and persists a rating for an existing run. Quarantine listing
+and feedback totals are available at `GET /v1/admin/quarantine` and
+`GET /v1/admin/feedback/summary`. Both admin endpoints require
+`Authorization: Bearer <ORCAS_ADMIN_TOKEN>` and are unavailable until that
+environment variable is configured.
+
 The gateway's `/docs` page shows the request and response shapes. Changes to the frozen
 schema require the decision and approval process in `contracts/README.md`.

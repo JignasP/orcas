@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
 import uuid
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -18,6 +19,7 @@ from libs.orcas_common.runstore import PostgresRunStore
 from services.gateway.input_guardrails import check_free_text
 from services.gateway.models import (
     Complaint,
+    FeedbackRequest,
     RunStatus,
     SubmitResponse,
     cross_field_errors,
@@ -46,7 +48,7 @@ def create_app(store=None, dispatcher=None) -> FastAPI:
             "CORS_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080"
         ).split(",") if origin.strip()],
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Correlation-ID"],
+        allow_headers=["Content-Type", "X-Correlation-ID", "Authorization"],
     )
 
     @app.middleware("http")
@@ -130,6 +132,39 @@ def create_app(store=None, dispatcher=None) -> FastAPI:
         return {key: record.get(key) for key in (
             "run_id", "status", "submitted_at", "started_at", "finished_at", "result"
         )}
+
+    @app.get("/v1/runs/{run_id}/trace")
+    def get_trace(run_id: uuid.UUID):
+        record = store.get_run(str(run_id))
+        if record is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        events = store.get_events(str(run_id))
+        return {"run_id": str(run_id), "status": record["status"], "events": events,
+                "total_cost_usd": sum(float(event.get("cost_usd") or 0) for event in events)}
+
+    @app.post("/v1/runs/{run_id}/feedback", status_code=201)
+    def post_feedback(run_id: uuid.UUID, feedback: FeedbackRequest):
+        if store.get_run(str(run_id)) is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        return store.add_feedback(str(run_id), feedback.rating, feedback.reason)
+
+    def require_admin(request: Request) -> None:
+        token = os.getenv("ORCAS_ADMIN_TOKEN", "")
+        if not token:
+            raise HTTPException(status_code=503, detail="admin API is not configured")
+        supplied = request.headers.get("Authorization", "")
+        if not hmac.compare_digest(supplied, f"Bearer {token}"):
+            raise HTTPException(status_code=401, detail="admin authorization required")
+
+    @app.get("/v1/admin/quarantine")
+    def list_quarantine(request: Request, limit: int = Query(default=100, ge=1, le=500)):
+        require_admin(request)
+        return {"items": store.list_quarantine(limit)}
+
+    @app.get("/v1/admin/feedback/summary")
+    def feedback_summary(request: Request):
+        require_admin(request)
+        return store.feedback_summary()
 
     return app
 
