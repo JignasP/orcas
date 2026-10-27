@@ -23,4 +23,9 @@ separately as expected `422` responses.
 
 Each request gets a unique client ID, so the rate limit does not distort this
 baseline. Cache comparisons require a separate repeated-input experiment.
+Use `LOADTEST_CACHE_MODE=repeat` for repeated submissions and
+`LOADTEST_CACHE_MODE=bypass` for the same submissions with cache bypassed.
+Raise `RATE_LIMIT_PER_MIN` enough that neither comparison receives `429`,
+warm the cache before recording, and compare the end-to-end p95, hit ratio,
+and persisted cost per 100 runs. Record both settings with the results.
 Do not report measurements until a live stack has been exercised.

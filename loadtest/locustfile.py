@@ -19,6 +19,9 @@ PAYLOADS = [
 ]
 POLL_SECONDS = float(os.getenv("LOADTEST_POLL_SECONDS", "1"))
 MAX_WAIT_SECONDS = float(os.getenv("LOADTEST_MAX_WAIT_SECONDS", "180"))
+CACHE_MODE = os.getenv("LOADTEST_CACHE_MODE", "unique")
+if CACHE_MODE not in {"unique", "repeat", "bypass"}:
+    raise ValueError("LOADTEST_CACHE_MODE must be unique, repeat, or bypass")
 
 
 class ComplaintUser(HttpUser):
@@ -27,13 +30,16 @@ class ComplaintUser(HttpUser):
     @task
     def submit_and_poll(self):
         payload = dict(random.choice(PAYLOADS))
-        payload["client_id"] = f"load-{uuid.uuid4().hex[:16]}"
+        if CACHE_MODE == "unique":
+            payload["client_id"] = f"load-{uuid.uuid4().hex[:16]}"
+        headers = {"X-Run-Cache-Bypass": "true"} if CACHE_MODE == "bypass" else {}
         started = time.monotonic()
         error: Exception | None = None
         response_length = 0
 
         try:
-            with self.client.post("/v1/complaints", json=payload, name="POST /v1/complaints",
+            with self.client.post("/v1/complaints", json=payload, headers=headers,
+                                  name="POST /v1/complaints",
                                   catch_response=True) as response:
                 if response.status_code != 202:
                     response.failure(f"expected 202, got {response.status_code}")
