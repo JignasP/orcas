@@ -126,6 +126,15 @@ def test_feedback_is_persisted_and_aggregated(monkeypatch):
     assert summary.json() == {"up": 0, "down": 1, "total": 1}
 
 
+def test_eval_score_is_persisted_for_quality_dashboard():
+    client, store, _ = client_and_state()
+    run_id = client.post("/v1/complaints", json=valid_payload()).json()["run_id"]
+    score = store.add_eval_score(run_id, "verification_passed", 1.0,
+                                 {"source": "worker_verifier"})
+    assert score["metric"] == "verification_passed"
+    assert store.eval_scores[0]["run_id"] == run_id
+
+
 def test_quarantine_listing_requires_admin_token(monkeypatch):
     monkeypatch.setenv("ORCAS_ADMIN_TOKEN", "test-admin-token")
     client, _, _ = client_and_state()

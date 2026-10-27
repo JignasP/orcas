@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from libs.orcas_common.logging import configure_logging, correlation_id
 from libs.orcas_common.run_cache import RedisRunCache
 from libs.orcas_common.runstore import PostgresRunStore
+from libs.orcas_common.telemetry import configure_tracing
 from services.gateway.input_guardrails import check_free_text
 from services.gateway.metrics import (
     CACHE_LOOKUPS,
@@ -60,6 +61,7 @@ def create_app(store=None, dispatcher=None, limiter=None, cache=None) -> FastAPI
             os.environ["RETRIEVAL_SERVICE_URL"], Path(__file__).parents[2] / "prompts",
         )
     app = FastAPI(title="ORCAS Gateway", version="1.0.0")
+    configure_tracing("gateway", app=app, instrument_httpx=True)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[origin.strip() for origin in os.getenv(
