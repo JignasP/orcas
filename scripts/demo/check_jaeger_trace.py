@@ -27,11 +27,20 @@ def matching_trace(base_url: str) -> tuple[str, set[str]] | None:
             process_id: process.get("serviceName")
             for process_id, process in processes.items()
         }
-        present = {
-            service_by_process.get(span.get("processID"))
-            for span in trace.get("spans", [])
+        spans = trace.get("spans", [])
+        present = {service_by_process.get(span.get("processID")) for span in spans}
+        publish_ids = {
+            span.get("spanID") for span in spans
+            if span.get("operationName") == "queue.publish"
+            and service_by_process.get(span.get("processID")) == "orcas-gateway"
         }
-        if REQUIRED_SERVICES <= present:
+        worker_continues_publish = any(
+            span.get("operationName") == "worker.run_complaint"
+            and service_by_process.get(span.get("processID")) == "orcas-worker"
+            and any(ref.get("spanID") in publish_ids for ref in span.get("references", []))
+            for span in spans
+        )
+        if REQUIRED_SERVICES <= present and worker_continues_publish:
             return trace["traceID"], present
     return None
 
