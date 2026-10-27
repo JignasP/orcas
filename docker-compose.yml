@@ -141,6 +141,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
       ORCAS_ADMIN_TOKEN: ${ORCAS_ADMIN_TOKEN:-}
+      REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-60}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"

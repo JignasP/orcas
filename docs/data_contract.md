@@ -43,5 +43,10 @@ and feedback totals are available at `GET /v1/admin/quarantine` and
 `Authorization: Bearer <ORCAS_ADMIN_TOKEN>` and are unavailable until that
 environment variable is configured.
 
+Valid submissions are limited by a Redis token bucket for each `client_id`.
+The default capacity is 60 requests per minute. A rejected request returns
+`429` with `Retry-After` and creates no run. The gateway exposes request
+latency, status counts, and rate-limit rejections at `GET /metrics`.
+
 The gateway's `/docs` page shows the request and response shapes. Changes to the frozen
 schema require the decision and approval process in `contracts/README.md`.

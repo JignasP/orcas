@@ -137,3 +137,20 @@ def test_quarantine_listing_requires_admin_token(monkeypatch):
     assert response.status_code == 200
     assert len(response.json()["items"]) == 1
     assert response.json()["items"][0]["reason"] == "validation"
+
+
+def test_rate_limit_rejects_before_run_creation():
+    class Limited:
+        def retry_after(self, client_id):
+            assert client_id == "demo-client"
+            return 3
+
+    store = InMemoryRunStore()
+    dispatcher = RecordingDispatcher()
+    client = TestClient(create_app(store=store, dispatcher=dispatcher, limiter=Limited()))
+    response = client.post("/v1/complaints", json=valid_payload())
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "3"
+    assert store.runs == {}
+    assert dispatcher.sent == []
+    assert b'orcas_gateway_rate_limit_rejections_total' in client.get("/metrics").content
