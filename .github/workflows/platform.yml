@@ -31,7 +31,7 @@ jobs:
       - name: Install test dependencies
         run: pip install -r services/gateway/requirements.txt langgraph pyyaml jsonschema pytest httpx ruff redis
       - name: Lint platform code
-        run: ruff check --isolated --select E4,E7,E9,F,I libs services/gateway services/metrics_exporter services/worker/tasks.py services/worker/clients/retrieval.py services/worker/clients/observed_retrieval.py services/worker/clients/llm_client.py services/retrieval/app.py services/llm_gateway/app.py scripts/doctor.py scripts/check_repository.py loadtest/locustfile.py tests/platform
+        run: ruff check --isolated --select E4,E7,E9,F,I libs services/gateway services/metrics_exporter services/worker/tasks.py services/worker/clients/retrieval.py services/worker/clients/observed_retrieval.py services/worker/clients/llm_client.py services/retrieval/app.py services/llm_gateway/app.py scripts/doctor.py scripts/check_repository.py scripts/benchmarks loadtest/locustfile.py tests/platform
       - name: Test platform and agent
         run: python -m pytest tests/platform tests/agent tests/web -q
       - name: Check tracked configuration and credentials
