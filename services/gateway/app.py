@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from libs.orcas_common.logging import configure_logging, correlation_id
 from libs.orcas_common.runstore import PostgresRunStore
+from services.gateway.input_guardrails import check_free_text
 from services.gateway.models import (
     Complaint,
     RunStatus,
@@ -97,6 +98,12 @@ def create_app(store=None, dispatcher=None) -> FastAPI:
             complaint = None
         if errors:
             quarantine_id = store.quarantine(data, "validation", errors)
+            return JSONResponse(status_code=422, content={"detail": errors, "quarantine_id": quarantine_id})
+
+        errors = check_free_text({"text": complaint.text, "entity_name_hint": complaint.entity_name_hint})
+        if errors:
+            reason = errors[0]["type"]
+            quarantine_id = store.quarantine(data, reason, errors)
             return JSONResponse(status_code=422, content={"detail": errors, "quarantine_id": quarantine_id})
 
         run_id = str(uuid.uuid4())
