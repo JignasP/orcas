@@ -1,14 +1,19 @@
-import os
-import uuid
 import logging
+import os
 from typing import Any, Dict, Optional
 
+from libs.orcas_common.logging import configure_logging, correlation_id
+from libs.orcas_common.run_cache import RedisRunCache
+from libs.orcas_common.runstore import (
+    TERMINAL,
+    InMemoryRunStore,
+    PostgresRunStore,
+    RunStore,
+)
 from services.worker.agent.researcher import ResearcherGraph
 from services.worker.agent.verifier import VerifierGraph
-from services.worker.guardrails.output_filter import OutputFilter
-from libs.orcas_common.runstore import InMemoryRunStore, PostgresRunStore, RunStore, TERMINAL
-from libs.orcas_common.logging import configure_logging, correlation_id
 from services.worker.clients.retrieval import HttpRetrievalClient
+from services.worker.guardrails.output_filter import OutputFilter
 
 logger = logging.getLogger("worker.tasks")
 
@@ -99,7 +104,8 @@ def run_complaint_pipeline(
     )
 
     try:
-        complaint_payload = record.get("payload", {})
+        complaint_payload = dict(record.get("payload", {}))
+        cache_key = complaint_payload.pop("_cache_key", None)
         
         # 1. Researcher Phase
         draft = r_graph.run(run_id=run_id, complaint_fields=complaint_payload)
@@ -172,6 +178,13 @@ def run_complaint_pipeline(
 
         status = filtered_det.get("status", "completed")
         store.complete(run_id, filtered_det)
+        if cache_key and os.getenv("REDIS_URL") and status in {"completed", "escalated"}:
+            try:
+                RedisRunCache(os.environ["REDIS_URL"], int(os.getenv("RUN_CACHE_TTL_S", "3600"))).put(
+                    cache_key, filtered_det
+                )
+            except Exception:
+                logger.exception("unable to cache completed run")
 
         store.append_event(
             run_id=run_id,

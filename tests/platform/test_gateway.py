@@ -154,3 +154,40 @@ def test_rate_limit_rejects_before_run_creation():
     assert store.runs == {}
     assert dispatcher.sent == []
     assert b'orcas_gateway_rate_limit_rejections_total' in client.get("/metrics").content
+
+
+def test_completed_cache_hit_creates_terminal_run_without_dispatch():
+    class Cache:
+        def key_for(self, payload):
+            assert payload["client_id"] == "demo-client"
+            return "cache-key"
+
+        def get(self, key):
+            assert key == "cache-key"
+            return {"status": "completed", "run_id": "old-run", "route": "assign_to_entity"}
+
+    store = InMemoryRunStore()
+    dispatcher = RecordingDispatcher()
+    client = TestClient(create_app(store=store, dispatcher=dispatcher, cache=Cache()))
+    response = client.post("/v1/complaints", json=valid_payload())
+    assert response.status_code == 202
+    assert response.headers["X-Run-Cache"] == "hit"
+    run_id = response.json()["run_id"]
+    assert client.get(f"/v1/runs/{run_id}").json()["result"]["run_id"] == run_id
+    assert client.get(f"/v1/runs/{run_id}").json()["status"] == "completed"
+    assert dispatcher.sent == []
+    assert store.get_events(run_id)[0]["kind"] == "cache_hit"
+
+
+def test_cache_can_be_bypassed_for_evaluation():
+    class Cache:
+        def key_for(self, payload):
+            raise AssertionError("cache should not be queried")
+
+    store = InMemoryRunStore()
+    dispatcher = RecordingDispatcher()
+    client = TestClient(create_app(store=store, dispatcher=dispatcher, cache=Cache()))
+    response = client.post("/v1/complaints", json=valid_payload(),
+                           headers={"X-Run-Cache-Bypass": "true"})
+    assert response.status_code == 202
+    assert dispatcher.sent == [response.json()["run_id"]]

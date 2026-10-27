@@ -8,6 +8,7 @@ import logging
 import os
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -17,9 +18,15 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import ValidationError
 
 from libs.orcas_common.logging import configure_logging, correlation_id
+from libs.orcas_common.run_cache import RedisRunCache
 from libs.orcas_common.runstore import PostgresRunStore
 from services.gateway.input_guardrails import check_free_text
-from services.gateway.metrics import LATENCY, RATE_LIMIT_REJECTIONS, REQUESTS
+from services.gateway.metrics import (
+    CACHE_LOOKUPS,
+    LATENCY,
+    RATE_LIMIT_REJECTIONS,
+    REQUESTS,
+)
 from services.gateway.models import (
     Complaint,
     FeedbackRequest,
@@ -41,12 +48,17 @@ def _validation_errors(error: ValidationError) -> list[dict[str, Any]]:
     } for item in error.errors()]
 
 
-def create_app(store=None, dispatcher=None, limiter=None) -> FastAPI:
+def create_app(store=None, dispatcher=None, limiter=None, cache=None) -> FastAPI:
     configure_logging(os.getenv("LOG_LEVEL", "INFO"))
     store = store or PostgresRunStore()
     dispatcher = dispatcher or CeleryDispatcher()
     if limiter is None and os.getenv("REDIS_URL"):
         limiter = RedisRateLimiter(os.environ["REDIS_URL"], int(os.getenv("RATE_LIMIT_PER_MIN", "60")))
+    if cache is None and os.getenv("REDIS_URL") and os.getenv("RETRIEVAL_SERVICE_URL"):
+        cache = RedisRunCache(
+            os.environ["REDIS_URL"], int(os.getenv("RUN_CACHE_TTL_S", "3600")),
+            os.environ["RETRIEVAL_SERVICE_URL"], Path(__file__).parents[2] / "prompts",
+        )
     app = FastAPI(title="ORCAS Gateway", version="1.0.0")
     app.add_middleware(
         CORSMiddleware,
@@ -135,9 +147,37 @@ def create_app(store=None, dispatcher=None, limiter=None) -> FastAPI:
                 return JSONResponse(status_code=429, content={"detail": "rate limit exceeded"},
                                     headers={"Retry-After": str(retry_after)})
 
+        payload = complaint.model_dump(mode="json", exclude_none=True)
+        cache_key = None
+        if cache is not None and request.headers.get("X-Run-Cache-Bypass", "").lower() != "true":
+            try:
+                cache_key = cache.key_for(payload)
+                cached = cache.get(cache_key) if cache_key else None
+            except Exception:
+                logger.exception("run cache unavailable; continuing without cache")
+                cached = None
+                cache_key = None
+            CACHE_LOOKUPS.labels("hit" if cached else "miss").inc()
+        else:
+            cached = None
+            if cache is not None:
+                CACHE_LOOKUPS.labels("bypass").inc()
+
         run_id = str(uuid.uuid4())
         correlation_id.set(run_id)
-        store.create_run(run_id, complaint.model_dump(mode="json", exclude_none=True))
+        if cache_key:
+            payload["_cache_key"] = cache_key
+        store.create_run(run_id, payload)
+        if cached:
+            cached = dict(cached)
+            cached["run_id"] = run_id
+            store.complete(run_id, cached)
+            store.append_event(run_id, "gateway", "cache", "cache_hit",
+                               payload={"cache_key": cache_key})
+            return JSONResponse(
+                status_code=202, content={"run_id": run_id, "status_url": f"/v1/runs/{run_id}"},
+                headers={"X-Correlation-ID": run_id, "X-Run-Cache": "hit"},
+            )
         try:
             dispatcher.send(run_id)
         except Exception:

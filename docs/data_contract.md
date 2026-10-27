@@ -48,5 +48,13 @@ The default capacity is 60 requests per minute. A rejected request returns
 `429` with `Retry-After` and creates no run. The gateway exposes request
 latency, status counts, and rate-limit rejections at `GET /metrics`.
 
+Completed determinations may be reused for an identical complaint from the
+same client when the retrieval index and prompt files are unchanged. The
+gateway returns a fresh run ID that is immediately `completed`, with
+`X-Run-Cache: hit`; no Celery message is sent. The cache TTL defaults to one
+hour. `X-Run-Cache-Bypass: true` forces a fresh execution for evaluation.
+If the cache or index-info service is unavailable, the gateway queues a fresh
+run. Cache hit and miss counts are exposed on `/metrics`.
+
 The gateway's `/docs` page shows the request and response shapes. Changes to the frozen
 schema require the decision and approval process in `contracts/README.md`.

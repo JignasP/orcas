@@ -12,3 +12,6 @@ LATENCY = Histogram(
 RATE_LIMIT_REJECTIONS = Counter(
     "orcas_gateway_rate_limit_rejections_total", "Complaint submissions rejected per client"
 )
+CACHE_LOOKUPS = Counter(
+    "orcas_gateway_run_cache_lookups_total", "Completed-run cache lookups", ["outcome"]
+)

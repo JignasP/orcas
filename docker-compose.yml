@@ -114,6 +114,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       RETRIEVAL_SERVICE_URL: http://retrieval:8001
       LLM_GATEWAY_URL: http://llm-gateway:8002
+      REDIS_URL: redis://redis:6379/0
+      RUN_CACHE_TTL_S: ${RUN_CACHE_TTL_S:-3600}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       migrate:
@@ -143,6 +145,8 @@ services:
       ORCAS_ADMIN_TOKEN: ${ORCAS_ADMIN_TOKEN:-}
       REDIS_URL: redis://redis:6379/0
       RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-60}
+      RUN_CACHE_TTL_S: ${RUN_CACHE_TTL_S:-3600}
+      RETRIEVAL_SERVICE_URL: http://retrieval:8001
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"
