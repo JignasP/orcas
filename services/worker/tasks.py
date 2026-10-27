@@ -53,7 +53,9 @@ try:
         finally:
             correlation_id.reset(token)
 
-except ImportError:
+except ImportError as exc:
+    if exc.name != "celery":
+        raise
     celery_app = None
     logger.info("Celery not installed; run_complaint_pipeline available as plain function.")
 

@@ -16,8 +16,6 @@ def configure_tracing(service_name: str, app=None, instrument_httpx: bool = Fals
 
     from opentelemetry import trace
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -29,7 +27,11 @@ def configure_tracing(service_name: str, app=None, instrument_httpx: bool = Fals
         ))
         trace.set_tracer_provider(_provider)
     if app is not None:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
         FastAPIInstrumentor.instrument_app(app, tracer_provider=_provider)
     if instrument_httpx and not _httpx_instrumented:
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
         HTTPXClientInstrumentor().instrument(tracer_provider=_provider)
         _httpx_instrumented = True
