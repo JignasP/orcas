@@ -38,15 +38,14 @@ def check(prometheus_url: str, grafana_url: str) -> tuple[set[str], int]:
     if dashboard.get("uid") != "orcas-platform" or len(dashboard.get("panels", [])) < 21:
         raise ValueError("The ORCAS dashboard was not provisioned with its expected panels")
     for series in ("container_cpu_usage_seconds_total", "container_memory_working_set_bytes"):
-        query = urllib.parse.urlencode({"query": series})
+        query = urllib.parse.urlencode({
+            "query": f'{series}{{id=~".*/docker-[0-9a-f]+[.]scope"}}'
+        })
         result = read_json(f"{prometheus_url}/api/v1/query?{query}")
         samples = result.get("data", {}).get("result", [])
-        ids = sorted(sample.get("metric", {}).get("id", "") for sample in samples)
-        container_ids = [value for value in ids if "docker" in value or "containerd" in value]
-        print(f"{series}: {len(samples)} series; sample labels: "
-              f"{[sample.get('metric', {}) for sample in samples[:3]]}")
-        print(f"{series}: {len(container_ids)} Docker/containerd cgroups; "
-              f"examples: {container_ids[:5]}; all IDs: {ids}")
+        if not samples:
+            raise ValueError(f"Prometheus has no Docker cgroup {series} series")
+        print(f"{series}: {len(samples)} Docker cgroup series")
     return healthy_jobs, len(dashboard["panels"])
 
 

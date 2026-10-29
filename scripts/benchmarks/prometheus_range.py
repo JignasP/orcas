@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import subprocess
 import urllib.parse
 import urllib.request
 
@@ -22,6 +24,34 @@ def values(series: list[dict]) -> list[float]:
             if value not in {"NaN", "+Inf", "-Inf"}]
 
 
+def compose_container_ids() -> dict[str, str]:
+    """Map Docker IDs to Compose services without requiring daemon access in cAdvisor."""
+    services = subprocess.check_output(
+        ["docker", "compose", "config", "--services"], text=True
+    ).splitlines()
+    containers = {}
+    for service in services:
+        ids = subprocess.check_output(
+            ["docker", "compose", "ps", "-q", service], text=True
+        ).splitlines()
+        for index, container_id in enumerate(ids, start=1):
+            containers[container_id] = f"{service}-{index}" if len(ids) > 1 else service
+    return containers
+
+
+def resource_max_by_container(series: list[dict], container_ids: dict[str, str]) -> dict[str, float]:
+    maxima = {}
+    for item in series:
+        match = re.search(r"/docker-([0-9a-f]{64})\.scope$", item["metric"].get("id", ""))
+        if not match or match.group(1) not in container_ids:
+            continue
+        samples = values([item])
+        if samples:
+            name = container_ids[match.group(1)]
+            maxima[name] = max(maxima.get(name, 0.0), max(samples))
+    return maxima
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("start", type=int)
@@ -30,24 +60,19 @@ def main() -> int:
     args = parser.parse_args()
     base = args.prometheus_url.rstrip("/")
     queue = values(query_range(base, "orcas_celery_queue_depth", args.start, args.end))
-    cpu = query_range(base, "sum by (name) (rate(container_cpu_usage_seconds_total"
-                            "{name=~\".*orcas.*\"}[1m]))", args.start, args.end)
+    container_ids = compose_container_ids()
+    cpu = query_range(base, "sum by (id) (rate(container_cpu_usage_seconds_total"
+                            "{id=~\".*/docker-[0-9a-f]+[.]scope\"}[1m]))", args.start, args.end)
     memory = query_range(base, "container_memory_working_set_bytes"
-                               "{name=~\".*orcas.*\"}", args.start, args.end)
+                               "{id=~\".*/docker-[0-9a-f]+[.]scope\"}", args.start, args.end)
     print(json.dumps({
         "start_unix": args.start,
         "end_unix": args.end,
         "queue_depth_max": max(queue) if queue else None,
         "queue_depth_mean": sum(queue) / len(queue) if queue else None,
         "queue_samples": len(queue),
-        "cpu_cores_max_by_container": {
-            item["metric"].get("name", "unknown"): max(samples)
-            for item in cpu if (samples := values([item]))
-        },
-        "memory_bytes_max_by_container": {
-            item["metric"].get("name", "unknown"): max(samples)
-            for item in memory if (samples := values([item]))
-        },
+        "cpu_cores_max_by_container": resource_max_by_container(cpu, container_ids),
+        "memory_bytes_max_by_container": resource_max_by_container(memory, container_ids),
     }, indent=2, sort_keys=True))
     return 0
 
