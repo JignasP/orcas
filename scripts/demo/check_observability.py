@@ -37,6 +37,14 @@ def check(prometheus_url: str, grafana_url: str) -> tuple[set[str], int]:
     dashboard = read_json(f"{grafana_url}/api/dashboards/uid/orcas-platform")["dashboard"]
     if dashboard.get("uid") != "orcas-platform" or len(dashboard.get("panels", [])) < 21:
         raise ValueError("The ORCAS dashboard was not provisioned with its expected panels")
+    for panel in dashboard["panels"]:
+        if panel["id"] not in {11, 12}:
+            continue
+        expression = panel["targets"][0]["expr"]
+        query = urllib.parse.urlencode({"query": expression})
+        result = read_json(f"{prometheus_url}/api/v1/query?{query}")
+        if not result.get("data", {}).get("result"):
+            raise ValueError(f"Grafana resource panel {panel['id']} has no live data")
     for series in ("container_cpu_usage_seconds_total", "container_memory_working_set_bytes"):
         query = urllib.parse.urlencode({
             "query": f'{series}{{id=~".*/docker-[0-9a-f]+[.]scope"}}'
