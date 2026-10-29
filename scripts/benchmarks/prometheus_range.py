@@ -43,11 +43,14 @@ def resource_max_by_container(series: list[dict], container_ids: dict[str, str])
     maxima = {}
     for item in series:
         match = re.search(r"/docker-([0-9a-f]{64})\.scope$", item["metric"].get("id", ""))
-        if not match or match.group(1) not in container_ids:
+        if not match:
+            continue
+        name = next((service for container_id, service in container_ids.items()
+                     if match.group(1).startswith(container_id)), None)
+        if name is None:
             continue
         samples = values([item])
         if samples:
-            name = container_ids[match.group(1)]
             maxima[name] = max(maxima.get(name, 0.0), max(samples))
     return maxima
 

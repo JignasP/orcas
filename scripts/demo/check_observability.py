@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import subprocess
 import time
 import urllib.parse
 import urllib.request
@@ -46,6 +48,11 @@ def check(prometheus_url: str, grafana_url: str) -> tuple[set[str], int]:
         result = read_json(f"{prometheus_url}/api/v1/query?{query}")
         if not result.get("data", {}).get("result"):
             raise ValueError(f"Grafana resource panel {panel['id']} has no live data")
+    gateway_id = subprocess.check_output(
+        ["docker", "compose", "ps", "-q", "gateway"], text=True
+    ).strip()
+    if not gateway_id:
+        raise ValueError("Docker Compose has no running gateway container")
     for series in ("container_cpu_usage_seconds_total", "container_memory_working_set_bytes"):
         query = urllib.parse.urlencode({
             "query": f'{series}{{id=~".*/docker-[0-9a-f]+[.]scope"}}'
@@ -54,6 +61,12 @@ def check(prometheus_url: str, grafana_url: str) -> tuple[set[str], int]:
         samples = result.get("data", {}).get("result", [])
         if not samples:
             raise ValueError(f"Prometheus has no Docker cgroup {series} series")
+        if not any(
+            (match := re.search(r"/docker-([0-9a-f]{64})\.scope$", sample["metric"].get("id", "")))
+            and match.group(1).startswith(gateway_id)
+            for sample in samples
+        ):
+            raise ValueError(f"Docker cgroup {series} has no Compose gateway series")
         print(f"{series}: {len(samples)} Docker cgroup series")
     return healthy_jobs, len(dashboard["panels"])
 
@@ -71,7 +84,7 @@ def main() -> int:
             jobs, panels = check(args.prometheus_url.rstrip("/"), args.grafana_url.rstrip("/"))
             print(f"Live Prometheus targets: {', '.join(sorted(jobs))}; Grafana panels: {panels}")
             return 0
-        except (OSError, KeyError, ValueError) as error:
+        except (OSError, subprocess.CalledProcessError, KeyError, ValueError) as error:
             last_error = error
         time.sleep(3)
     raise SystemExit(f"Observability verification did not pass: {last_error}")
