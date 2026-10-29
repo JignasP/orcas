@@ -55,14 +55,15 @@ def check(prometheus_url: str, grafana_url: str) -> tuple[set[str], int]:
         raise ValueError("Docker Compose has no running gateway container")
     for series in ("container_cpu_usage_seconds_total", "container_memory_working_set_bytes"):
         query = urllib.parse.urlencode({
-            "query": f'{series}{{id=~".*/docker-[0-9a-f]+[.]scope"}}'
+            "query": f'{series}{{id=~".*(/docker/|/docker-)[0-9a-f]+([.]scope)?"}}'
         })
         result = read_json(f"{prometheus_url}/api/v1/query?{query}")
         samples = result.get("data", {}).get("result", [])
         if not samples:
             raise ValueError(f"Prometheus has no Docker cgroup {series} series")
         if not any(
-            (match := re.search(r"/docker-([0-9a-f]{64})\.scope$", sample["metric"].get("id", "")))
+            (match := re.search(r"(?:/docker/|/docker-)([0-9a-f]{64})(?:\.scope)?$",
+                                sample["metric"].get("id", "")))
             and match.group(1).startswith(gateway_id)
             for sample in samples
         ):

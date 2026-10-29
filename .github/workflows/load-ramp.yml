@@ -8,6 +8,7 @@ on:
       - .github/workflows/load-ramp.yml
       - scripts/benchmarks/ramp_experiment.sh
       - scripts/benchmarks/prometheus_range.py
+      - scripts/benchmarks/docker_stats.py
 
 jobs:
   load-ramp:

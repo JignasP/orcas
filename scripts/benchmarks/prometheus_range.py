@@ -42,7 +42,8 @@ def compose_container_ids() -> dict[str, str]:
 def resource_max_by_container(series: list[dict], container_ids: dict[str, str]) -> dict[str, float]:
     maxima = {}
     for item in series:
-        match = re.search(r"/docker-([0-9a-f]{64})\.scope$", item["metric"].get("id", ""))
+        match = re.search(r"(?:/docker/|/docker-)([0-9a-f]{64})(?:\.scope)?$",
+                          item["metric"].get("id", ""))
         if not match:
             continue
         name = next((service for container_id, service in container_ids.items()
@@ -64,16 +65,20 @@ def main() -> int:
     base = args.prometheus_url.rstrip("/")
     queue = values(query_range(base, "orcas_celery_queue_depth", args.start, args.end))
     container_ids = compose_container_ids()
-    cpu = query_range(base, "sum by (id) (rate(container_cpu_usage_seconds_total"
-                            "{id=~\".*/docker-[0-9a-f]+[.]scope\"}[1m]))", args.start, args.end)
-    memory = query_range(base, "container_memory_working_set_bytes"
-                               "{id=~\".*/docker-[0-9a-f]+[.]scope\"}", args.start, args.end)
+    cpu = query_range(base, "sum by (id) (rate(container_cpu_usage_seconds_total[1m]))",
+                      args.start, args.end)
+    memory = query_range(base, "container_memory_working_set_bytes", args.start, args.end)
     print(json.dumps({
         "start_unix": args.start,
         "end_unix": args.end,
         "queue_depth_max": max(queue) if queue else None,
         "queue_depth_mean": sum(queue) / len(queue) if queue else None,
         "queue_samples": len(queue),
+        "compose_container_count": len(container_ids),
+        "cadvisor_cpu_series": len(cpu),
+        "cadvisor_memory_series": len(memory),
+        "cadvisor_id_examples": [item["metric"].get("id", "") for item in memory
+                                 if "docker" in item["metric"].get("id", "")][:5],
         "cpu_cores_max_by_container": resource_max_by_container(cpu, container_ids),
         "memory_bytes_max_by_container": resource_max_by_container(memory, container_ids),
     }, indent=2, sort_keys=True))
