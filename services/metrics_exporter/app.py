@@ -47,9 +47,16 @@ def collect_snapshot() -> dict:
             "percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) "
             "FROM run_events WHERE latency_ms > 0 GROUP BY step"
         ).fetchall()
+        llm_by_step = connection.execute(
+            "SELECT step, COALESCE(SUM((tokens->>'prompt')::int), 0), "
+            "COALESCE(SUM((tokens->>'completion')::int), 0), "
+            "COALESCE(SUM(cost_usd), 0) "
+            "FROM run_events WHERE kind = 'llm_call' GROUP BY step"
+        ).fetchall()
     queue_depth = redis.Redis.from_url(os.environ["REDIS_URL"], socket_timeout=2).llen("orcas_tasks")
     return {"statuses": statuses, "latency": latency, "events": events,
             "feedback": feedback, "scores": scores, "step_latency": step_latency,
+            "llm_by_step": llm_by_step,
             "queue_depth": queue_depth}
 
 
@@ -78,6 +85,14 @@ def render_metrics(snapshot: dict) -> bytes:
     tokens = gauge("orcas_run_tokens", "Persisted LLM tokens", ["direction"])
     tokens.labels("prompt").set(prompt_tokens or 0)
     tokens.labels("completion").set(completion_tokens or 0)
+    step_tokens = gauge("orcas_run_tokens_by_step", "Persisted LLM tokens by step",
+                        ["step", "direction"])
+    step_cost = gauge("orcas_run_cost_by_step_usd", "Persisted LLM cost by step in USD",
+                      ["step"])
+    for name, prompt, completion, cost in snapshot.get("llm_by_step", []):
+        step_tokens.labels(name, "prompt").set(prompt)
+        step_tokens.labels(name, "completion").set(completion)
+        step_cost.labels(name).set(float(cost))
     gauge("orcas_run_cost_usd", "Persisted LLM cost in USD").set(float(cost_usd or 0))
     gauge("orcas_cost_per_100_runs_usd", "Persisted LLM cost per 100 terminal runs").set(
         float(cost_usd or 0) * 100 / terminal if terminal else 0

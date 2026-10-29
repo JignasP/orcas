@@ -28,6 +28,9 @@
     {"id": 18, "title": "Tool calls per run", "type": "timeseries", "gridPos": {"x": 16, "y": 48, "w": 8, "h": 8}, "targets": [{"expr": "orcas_run_tool_calls_per_run", "refId": "A"}]},
     {"id": 19, "title": "LLM breaker open", "type": "timeseries", "gridPos": {"x": 0, "y": 56, "w": 8, "h": 8}, "targets": [{"expr": "orcas_llm_breaker_open", "refId": "A"}]},
     {"id": 20, "title": "Cost per 100 terminal runs", "type": "timeseries", "gridPos": {"x": 8, "y": 56, "w": 8, "h": 8}, "targets": [{"expr": "orcas_cost_per_100_runs_usd", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "currencyUSD"}}},
-    {"id": 21, "title": "Work events per run", "type": "timeseries", "gridPos": {"x": 16, "y": 56, "w": 8, "h": 8}, "targets": [{"expr": "orcas_run_steps_per_run", "refId": "A"}]}
+    {"id": 21, "title": "Work events per run", "type": "timeseries", "gridPos": {"x": 16, "y": 56, "w": 8, "h": 8}, "targets": [{"expr": "orcas_run_steps_per_run", "refId": "A"}]},
+    {"id": 22, "title": "Service availability (5m)", "type": "timeseries", "gridPos": {"x": 0, "y": 64, "w": 8, "h": 8}, "targets": [{"expr": "avg_over_time(up{job=~\"gateway|retrieval|llm-gateway|worker-metrics|cadvisor\"}[5m])", "legendFormat": "{{job}}", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "percentunit"}}},
+    {"id": 23, "title": "LLM tokens by step", "type": "timeseries", "gridPos": {"x": 8, "y": 64, "w": 8, "h": 8}, "targets": [{"expr": "orcas_run_tokens_by_step", "legendFormat": "{{step}} {{direction}}", "refId": "A"}]},
+    {"id": 24, "title": "LLM cost by step", "type": "timeseries", "gridPos": {"x": 16, "y": 64, "w": 8, "h": 8}, "targets": [{"expr": "orcas_run_cost_by_step_usd", "legendFormat": "{{step}}", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "currencyUSD"}}}
   ]
 }

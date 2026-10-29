@@ -10,7 +10,8 @@ import urllib.request
 
 REQUIRED_JOBS = {"gateway", "retrieval", "llm-gateway", "worker-metrics", "cadvisor"}
 REQUIRED_SERIES = {"orcas_gateway_requests_total", "orcas_run_latency_seconds",
-                   "orcas_celery_queue_depth"}
+                   "orcas_celery_queue_depth", "orcas_eval_score",
+                   "orcas_run_tokens_by_step", "orcas_run_cost_by_step_usd"}
 
 
 def read_json(url: str) -> dict:
@@ -35,7 +36,7 @@ def check(prometheus_url: str, grafana_url: str) -> tuple[set[str], int]:
             raise ValueError(f"Prometheus has no live {series} series")
 
     dashboard = read_json(f"{grafana_url}/api/dashboards/uid/orcas-platform")["dashboard"]
-    if dashboard.get("uid") != "orcas-platform" or len(dashboard.get("panels", [])) < 21:
+    if dashboard.get("uid") != "orcas-platform" or len(dashboard.get("panels", [])) < 24:
         raise ValueError("The ORCAS dashboard was not provisioned with its expected panels")
     for panel in dashboard["panels"]:
         if panel["id"] not in {11, 12}:
