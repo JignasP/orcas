@@ -55,7 +55,7 @@ Full detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 | LLM access | Own `llm-gateway` service (LiteLLM adapters, provider chosen by env var) |
 | Evaluation | TruLens + custom claim-level hallucination metric |
 | Observability | JSON logs, run events, OpenTelemetry/Jaeger, Prometheus, Grafana |
-| Load test | Locust driver measures submit-to-terminal latency; results require a Docker run |
+| Load test | Locust measures submit-to-terminal latency; [measured results](docs/work/jignas/report-sections.md) |
 | Packaging | Docker Compose |
 
 ## 4. Setup / installation

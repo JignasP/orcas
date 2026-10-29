@@ -23,5 +23,22 @@ time, affected service, symptom, detection, cause, recovery, and follow-up.
   route, and the malformed request returned quarantine ID
   `78a85f7e-b737-4f74-9b7b-1fa5d8fe024e`.
 - **Follow-up:** keep the full-stack intake smoke test in CI. The controlled
-  worker, Redis, and retrieval failure checks in the [runbook](runbook.md)
-  still need to be run.
+  worker, Redis, and retrieval checks in the [runbook](runbook.md) later
+  passed on a [clean runner](https://github.com/JignasP/orcas/actions/runs/40542611618).
+
+## 2026-10-27 16:35 UTC — Retrieval recovery probe missed a connection reset
+
+- **Affected component:** the controlled failure test's retrieval readiness
+  probe on a clean GitHub Actions runner.
+- **Symptom and detection:** the first
+  [failure-drill run](https://github.com/JignasP/orcas/actions/runs/40540759058)
+  failed after restarting retrieval. Its log showed `ConnectionResetError`
+  while polling `/ready`; worker and Redis recovery had already passed.
+- **Cause:** the probe retried URL errors and timeouts but did not catch a
+  connection reset during service startup.
+- **Recovery:** commit `22c8f08` retries transient socket errors. The
+  [repeat run](https://github.com/JignasP/orcas/actions/runs/40542611618)
+  passed worker, Redis, and retrieval recovery.
+- **Follow-up:** keep the recovery drill in CI and treat a failed probe as
+  test evidence until the service state is checked, rather than assuming the
+  application failed to recover.

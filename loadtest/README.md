@@ -29,3 +29,19 @@ Raise `RATE_LIMIT_PER_MIN` enough that neither comparison receives `429`,
 warm the cache before recording, and compare the end-to-end p95, hit ratio,
 and persisted cost per 100 runs. Record both settings with the results.
 Do not report measurements until a live stack has been exercised.
+
+The [clean-runner benchmark](https://github.com/JignasP/orcas/actions/runs/40540516292)
+ran the ten-client baseline, three-worker comparison, 20- and 40-client
+loads, and cache warmup/repeat/bypass phases. Its uploaded artifact contains
+the Locust CSVs, logs, database snapshots, and `summary.json`. The
+[platform report](../docs/work/jignas/report-sections.md) records the measured
+results and limitations. To repeat the full sequence on a disposable
+stub-backed stack, run `bash scripts/benchmarks/ci_experiment.sh` from the
+repository root after the services are healthy.
+
+The [resource ramp](https://github.com/JignasP/orcas/actions/workflows/load-ramp.yml)
+also uploads Prometheus queue samples and per-phase Docker stats samples. Each
+`*.docker-summary.json` reports the highest sampled CPU percentage and memory
+usage by Compose container; samples are taken every ten seconds during Locust,
+so they are sampled maxima rather than continuous peaks. CPU percentage follows
+Docker's per-core convention and can exceed 100% on a multi-core host.

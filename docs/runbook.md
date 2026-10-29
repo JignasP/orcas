@@ -37,8 +37,18 @@ its Jaeger trace before calling the incident resolved.
 
 ## Controlled failure checks
 
-On a disposable local stack, stop a worker, Redis, or retrieval one at a time;
-submit a synthetic complaint; record the observed status, detection time,
-recovery action, and any data loss in [incident_log.md](incident_log.md).
-Restart the component and verify a fresh run. These checks have not yet been
-executed on this machine because Docker is unavailable.
+The [Compose failure-drill run](https://github.com/JignasP/orcas/actions/runs/40542611618)
+used a disposable clean runner and the stub-backed stack:
+
+| Stopped service | Observed during outage | After restart |
+|---|---|---|
+| Worker | Accepted run stayed `queued` | The same run completed |
+| Redis | Intake returned HTTP `503` | A new run completed |
+| Retrieval | Accepted run reached `failed` | A new run completed |
+
+Run `python scripts/benchmarks/failure_drills.py` only on a disposable Compose
+stack. The script stops one service at a time and writes the outcome to
+`loadtest/results/ci/failure-drills.json`. A retrieval outage does not
+automatically retry its failed run; submit a new synthetic complaint after
+restoring retrieval. Docker is unavailable on this workstation, so these
+observations come from GitHub Actions rather than a local run.
