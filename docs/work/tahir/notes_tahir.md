@@ -209,6 +209,14 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 
 **Web client (A8 finished):** expandable citations (`<details>` → full `passage_text` when present, else quote), escalation path (reason_code + reason + partial findings), verification block (passed, claims supported/checked, attempts), timeline; **feedback buttons** 👍/👎 + optional reason → `POST /v1/runs/{id}/feedback`. Fake gateway gained the feedback endpoint (stores `_FEEDBACK`) and `passage_text` on the §4.1 RBI citations. Live-smoked: determination shows 2/3 citations with passage_text; feedback recorded.
 
+**2026-11-03 update (T5, post-audit):** escalations showed `[object Object]` (partial findings are
+objects); polling gave up at 60 s while a live model is slower; `passage_text` existed only in the
+fake gateway; no trace link. Now: findings render as document · clause · chunk; wait time is
+configurable (default 180 s); each citation is marked ✓/✗ for "retrieved in this run" with the
+retrieved text from `/v1/runs/{id}/trace`; degraded banner; trace link; split and §4.1-paraphrase
+presets. Fake gateway: pinned §4.1 passages, no `passage_text`, a trace endpoint. Checked end to
+end in jsdom against the fake gateway (presets, marks, banner, findings, failed run).
+
 **Retrieval hardening:**
 - `/health` → **liveness** (always 200, never flaps while ingest builds); `/ready` → **readiness** (200 only when index openable & non-empty, else 503). Dockerfile HEALTHCHECK → `/ready`.
 - Per-request **timeout** (`RETRIEVAL_TIMEOUT_S`, default 10s) via a ThreadPool future → **504** on overrun (`with_timeout` helper, unit-tested).

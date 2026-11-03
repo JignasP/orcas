@@ -154,15 +154,15 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 **Evidence:** [app.js:127](../../services/web/static/app.js#L127), [app.js:88](../../services/web/static/app.js#L88)
 
 **What to do**
-- [ ] Render `partial_findings` as lines of document, clause and short chunk ID.
-- [ ] Make the poll timeout configurable, defaulting to 180 s.
-- [ ] Show a prominent banner when `degraded=true`. For a `failed` run, show a link to `/v1/runs/{id}/trace`.
-- [ ] Add a "View trace" link on every result (demo #3).
-- [ ] Add presets for a split-regulator case (F7) and a §4.1 paraphrase.
-- [ ] Citations: show the quote, and drop the `passage_text` branch or fill it from the trace events.
+- [x] Render `partial_findings` as lines of document, clause and short chunk ID.
+- [x] Make the poll timeout configurable, defaulting to 180 s.
+- [x] Show a prominent banner when `degraded=true`. For a `failed` run, show a link to `/v1/runs/{id}/trace`.
+- [x] Add a "View trace" link on every result (demo #3).
+- [x] Add presets for a split-regulator case (F7) and a §4.1 paraphrase.
+- [x] Citations: show the quote, and drop the `passage_text` branch or fill it from the trace events.
 
 **Done when**
-- [ ] Each demo preset renders cleanly against the live stack, including an escalation.
+- [ ] Each demo preset renders cleanly against the live stack, including an escalation. *(Checked against the fake gateway in jsdom; check once more on the Compose stack during J1.)*
 
 ---
 

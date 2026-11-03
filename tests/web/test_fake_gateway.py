@@ -78,8 +78,30 @@ def test_feedback_unknown_run_404():
     assert client.post("/v1/runs/nope/feedback", json={"rating": "down"}).status_code == 404
 
 
-def test_bank_fd_citations_have_passage_text():
+PINNED_4_1 = {  # docs/work/tahir/evaluation-1-package.md, addendum
+    "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e",  # SEBI clause 2
+    "c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0",  # RBI preamble
+    "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64",  # RBI clause 9
+}
+
+
+def test_bank_fd_cites_the_pinned_reference_passages():
     run = _complete(_submit("I invested in a fixed deposit through my bank app; interest is lower than promised."))
     cites = run["result"]["citations"]
-    rbi = [c for c in cites if c["doc_id"] == "rbi_integrated_ombudsman_scheme_2021"]
-    assert rbi and all(c.get("passage_text") for c in rbi)  # expandable full passage present
+    assert {c["chunk_id"] for c in cites} == PINNED_4_1
+    assert {c["clause"] for c in cites} == {"2", "preamble", "9"}
+    assert all("passage_text" not in c for c in cites)  # not part of determination.v1
+
+
+def test_trace_lists_the_retrieved_passages_behind_each_citation():
+    run_id = _submit("I invested in a fixed deposit through my bank app; interest is lower than promised.")
+    run = _complete(run_id)
+    trace = client.get(f"/v1/runs/{run_id}/trace").json()
+    retrieved = {p["chunk_id"]: p["text"] for e in trace["events"] if e["kind"] == "tool_call"
+                 for p in e["payload"]["passages"]}
+    for c in run["result"]["citations"]:
+        assert c["quote_span"] in retrieved[c["chunk_id"]]
+
+
+def test_trace_unknown_run_404():
+    assert client.get("/v1/runs/nope/trace").status_code == 404
