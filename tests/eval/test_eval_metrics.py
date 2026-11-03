@@ -66,3 +66,16 @@ def test_cited_hit_is_none_for_a_sut_that_does_not_cite():
     m = compute([_r(supporting_chunk_ids=["s1"], retrieved_chunk_ids=["s1"])], FakeJudge())
     assert m["supporting_passage_retrieved"] == 1.0
     assert m["supporting_passage_cited"] is None
+
+
+def test_intake_metrics_count_rejections_and_false_rejections():
+    results = [
+        _r(scenario_id="inj1", expected_intake="rejected", intake_rejected=True),
+        _r(scenario_id="inj2", expected_intake="rejected", intake_rejected=False),  # got past the guardrail
+        _r(scenario_id="ok1", intake_rejected=False),
+        _r(scenario_id="ok2", intake_rejected=True),  # a genuine complaint wrongly rejected
+    ]
+    m = compute(results, FakeJudge())
+    assert m["n_expected_intake_rejected"] == 2
+    assert m["intake_rejection_recall"] == 0.5
+    assert m["intake_false_rejections"] == 1
