@@ -1,8 +1,4 @@
-"""Slice-6 experiment harness + live scorer."""
-import pytest
-
-from services.corpus_common import store
-from eval import experiment, live_scorer
+"""Slice-6 live scorer (the agent experiment harness is tested in test_experiment.py)."""
 from eval.live_scorer import (
     InMemoryEvalScoreStore,
     InMemoryFeedbackStore,
@@ -11,25 +7,6 @@ from eval.live_scorer import (
     is_sampled,
     run_live_scoring,
 )
-
-
-# --- experiment harness ---
-def test_run_configs_returns_metrics():
-    if store.get_collection().count() == 0:
-        pytest.skip("index not built")
-    scen = [
-        {"id": "a", "complaint_text": "I invested in a fixed deposit through my bank app; interest is low.",
-         "expected_route": "refer_to_other_regulator", "expected_regulator": "RBI",
-         "expected_entity_type": "bank", "expected_escalation": False, "held_out": False},
-        {"id": "b", "complaint_text": "My mutual fund redemption is delayed and the NAV is wrong.",
-         "expected_route": "assign_to_entity", "expected_regulator": "SEBI",
-         "expected_entity_type": "mutual_fund", "expected_escalation": False, "held_out": False},
-    ]
-    out = experiment.run_configs(
-        {"off": {"use_framework_filter": False}, "on": {"use_framework_filter": True}}, scenarios=scen)
-    assert set(out) == {"off", "on"}
-    for m in out.values():
-        assert "groundedness" in m and "route_accuracy" in m
 
 
 # --- live scorer ---
