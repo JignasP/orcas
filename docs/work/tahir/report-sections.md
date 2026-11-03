@@ -53,40 +53,43 @@ needs. Hybrid showed no recall gain → off by default, available via `mode`.
 
 ## C. Evaluation (L3)
 
-- **22 synthetic scenarios** (`eval/scenarios.yaml`), full category coverage, **6 held out** from tuning.
-- **Judge:** deterministic embedding (NLI-substitute) judge (temperature-0, cached). LLM judge is
-  pluggable with the same interface; hygiene = temp 0, cached verdicts, 20% manual spot-check.
+- **22 synthetic scenarios** (`eval/scenarios.yaml`), full category coverage, **6 held out** from tuning;
+  15 pin a supporting passage (doc + clause + exact quote), all of which resolve in the index.
+- **System under test:** the shipped agent (`eval/agent_sut.py` runs the worker pipeline with the real
+  retrieval app). The keyword baseline (`eval/sut.py`) is kept as a reference only.
+- **Judge:** deterministic embedding (NLI-substitute) judge; thresholds support 0.45, relevance 0.32,
+  infer 0.40. No LLM judge is used.
 - **Metrics (exact computations in `evaluation.md`):** groundedness, context relevance, faithfulness,
-  hallucination rate (claim-level) + route/regulator/entity accuracy and escalation precision/recall.
+  hallucination rate (claim-level, claims = the answer's own sentences); route/regulator/entity accuracy
+  and escalation precision/recall; supporting passage retrieved / cited (label-based, no judge).
 
-**Baseline (`make eval`):**
+**The agent, stub mode (`make eval`, 2026-11-03):**
 
 | metric | all (22) | held-out (6) |
 |---|---|---|
-| groundedness | 0.911 | 0.917 |
-| context_relevance | 0.907 | 1.000 |
-| faithfulness | 0.933 | 0.917 |
-| hallucination_rate | 0.267 | 0.250 |
-| route / regulator / entity acc | 1.0 | 1.0 |
-| escalation precision / recall | 1.0 / 1.0 | 1.0 / 1.0 |
+| answered | 5 | 2 |
+| groundedness / faithfulness | 1.000 / 1.000 | 1.000 / 1.000 |
+| context_relevance | 0.360 | 0.400 |
+| hallucination_rate | 0.000 | 0.000 |
+| route / regulator / entity acc | 0.409 / 0.273 / 0.273 | 0.500 / 0.167 / 0.333 |
+| escalation precision / recall | 0.353 / 0.857 | 0.500 / 1.000 |
+| supporting passage retrieved / cited | 0.000 / 0.000 | 0.000 / 0.000 |
 
-**Deliberate change — framework filter OFF → ON (same set, all four metrics):**
+Stub replies are canned, so these numbers describe the pipeline, not model quality. The judge scores the
+5 answers' single generic sentence as grounded; the label-based metrics show that no run retrieved its
+pinned clause (for §4.1, clause 10 "non-maintainability" ranks first for the agent's query and the
+deciding clause 9 seventh, below the agent's `k=5`). Live-model results follow once a model is reachable.
 
-| metric | before | after | delta |
-|---|---|---|---|
-| groundedness | 0.889 | 0.911 | +0.022 |
-| faithfulness | 0.911 | 0.933 | +0.022 |
-| hallucination_rate | 0.333 | 0.267 | −0.066 |
-| context_relevance | 0.973 | 0.907 | −0.066 |
+**Keyword baseline (reference only, `make eval-baseline`):** groundedness 0.733, context relevance 0.907,
+faithfulness 0.800, hallucination 0.267, supporting passage retrieved 0.333; label metrics 1.0 by
+construction.
 
-The "framework swap" (the mechanism that fixes §4.1) improves grounding and cuts hallucination at a small
-context-relevance cost — reported honestly, including the metric that regressed.
-
-- **Variant harness (L2):** runs ≥2 named configs; Mitesh's reflect-prompt variants plug in as configs.
+- **Deliberate change and prompt-variant comparison (L2):** the earlier framework-filter before/after and
+  dense-vs-hybrid comparison ran on the keyword baseline, so they are withdrawn; both are re-run on the
+  agent (deliberate change + reflect v1 vs v2).
 - **Retrieval cache (D7):** warm p95 ≈ 0.1 ms vs cold ≈ 42 ms; `index_version` in the key invalidates
   stale entries on re-index.
-- **Live scoring (L6):** `eval/live_scorer.py` samples N% of completed runs, scores with the same metrics,
-  writes `eval_scores`; feedback aggregated alongside (in-memory seams → Jignas's Postgres).
+- **Live scoring (L6):** being moved from an in-memory demo to scoring sampled real runs into `eval_scores`.
 
 ## D. What did not work (honest)
 
@@ -97,9 +100,12 @@ context-relevance cost — reported honestly, including the metric that regresse
   not chase that number; clause-aligned is the right choice for grounded citations.
 - **Hybrid retrieval gave no measurable recall gain** on this corpus, so it is off by default (not deleted
   — it stays available and is re-tested in Slice 5's set).
-- **Label metrics read 1.0 but are not independent** — the baseline SUT is a rule classifier that mirrors
-  the label scheme. The meaningful baseline signal is the RAG metrics; real label numbers require Mitesh's
-  agent as the SUT. Stated wherever the numbers appear.
+- **The first evaluation never scored the agent.** `make eval` ran only the keyword baseline, whose label
+  metrics are 1.0 by construction, and two of its three claims per answer were sentences copied from the
+  retrieved passages, so groundedness (0.911) was inflated. Found in the integration audit; the harness now
+  scores the agent and claims come from the answer's own text (the baseline drops to 0.733).
+- **The live-scoring demo used synthetic feedback** (an up-rate of 0.727 came from a fixed pattern, not
+  users); those numbers are withdrawn.
 - **No free LLM judge was wired** (no API key); the embedding/NLI judge stands in. Groundedness and
   faithfulness are consequently highly correlated. 22 scenarios give wide confidence intervals.
 - **The mutual-fund servicing supporting passage is weak** — the MF Regulations don't expose a clean
@@ -114,7 +120,7 @@ context-relevance cost — reported honestly, including the metric that regresse
 | DoD item | Status |
 |---|---|
 | Unit tests + recall checks | ✅ `make test` → 60 passed |
-| Metrics exposed | ✅ retrieval `/metrics` (`orcas_*`); `make eval` prints the four metrics + route accuracy |
+| Metrics exposed | ✅ retrieval `/metrics` (`orcas_*`); `make eval` scores the agent and prints the four metrics, label metrics and supporting-passage hits |
 | Running log kept | ✅ `notes_tahir.md` (per-slice) |
 | Reproducible with a single `make` target | ✅ `make ingest` / `make eval` / `make test` |
 

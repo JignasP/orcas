@@ -45,3 +45,24 @@ def test_rag_and_label_metrics():
 def test_split_claims():
     cs = split_claims("The route is X. It is grounded in clause 9; see the scheme.")
     assert len(cs) >= 2
+
+
+def test_supporting_passage_hits_are_label_based():
+    results = [
+        _r(scenario_id="a", supporting_chunk_ids=["s1"], retrieved_chunk_ids=["x", "s1"],
+           cited_chunk_ids=["s1"]),
+        _r(scenario_id="b", supporting_chunk_ids=["s2"], retrieved_chunk_ids=["s2"],
+           cited_chunk_ids=["y"]),
+        _r(scenario_id="c", supporting_chunk_ids=["s3"], retrieved_chunk_ids=[], cited_chunk_ids=[]),
+        _r(scenario_id="d"),  # no pinned passage (an escalation case): not counted
+    ]
+    m = compute(results, FakeJudge())
+    assert m["n_with_supporting_passage"] == 3
+    assert m["supporting_passage_retrieved"] == round(2 / 3, 3)
+    assert m["supporting_passage_cited"] == round(1 / 3, 3)
+
+
+def test_cited_hit_is_none_for_a_sut_that_does_not_cite():
+    m = compute([_r(supporting_chunk_ids=["s1"], retrieved_chunk_ids=["s1"])], FakeJudge())
+    assert m["supporting_passage_retrieved"] == 1.0
+    assert m["supporting_passage_cited"] is None

@@ -13,6 +13,14 @@ answers; escalations assert nothing, so groundedness/faithfulness are N/A for th
 Label metrics (computed over ALL scenarios; no judge, so more trustworthy):
   route_accuracy, regulator_accuracy, entity_accuracy = exact-match vs expected labels.
   escalation precision/recall = escalation treated as the positive class.
+
+Supporting-passage metrics (over scenarios whose label pins a supporting passage; no judge):
+  supporting_passage_retrieved = share where a retrieved chunk is the pinned passage.
+  supporting_passage_cited     = share where a cited chunk is the pinned passage (None when the
+                                 SUT does not cite, i.e. cited_chunk_ids is None).
+
+Claims must come from the answer's own text. Sentences copied from the retrieved passages are
+supported by construction and would inflate groundedness.
 """
 from __future__ import annotations
 
@@ -40,6 +48,10 @@ class EvalResult:
     expected_regulator: str = ""
     expected_entity_type: str = ""
     expected_escalation: bool = False
+    # supporting passage: label (chunk ids of the pinned clause) and predictions
+    supporting_chunk_ids: List[str] = field(default_factory=list)
+    retrieved_chunk_ids: List[str] = field(default_factory=list)
+    cited_chunk_ids: Optional[List[str]] = None  # None: this SUT does not cite
     # SUT-specific diagnostics (status, citations, models...); not used by the metrics
     details: Dict[str, Any] = field(default_factory=dict)
 
@@ -86,6 +98,13 @@ def compute(results: List[EvalResult], judge: Judge = None) -> Dict:
     fp = sum(1 for r in results if r.escalated and not r.expected_escalation)
     fn = sum(1 for r in results if not r.escalated and r.expected_escalation)
 
+    # --- supporting-passage hits (label-based) ---
+    labelled = [r for r in results if r.supporting_chunk_ids]
+    citing = [r for r in labelled if r.cited_chunk_ids is not None]
+
+    def hit(ids, r):
+        return bool(set(ids or []) & set(r.supporting_chunk_ids))
+
     return {
         "n_scenarios": n,
         "n_answered": len(answered),
@@ -98,5 +117,13 @@ def compute(results: List[EvalResult], judge: Judge = None) -> Dict:
         "entity_accuracy": ent_acc,
         "escalation_precision": _safe_div(tp, tp + fp),
         "escalation_recall": _safe_div(tp, tp + fn),
+        "n_with_supporting_passage": len(labelled),
+        "supporting_passage_retrieved": _safe_div(
+            sum(hit(r.retrieved_chunk_ids, r) for r in labelled), len(labelled)),
+        "supporting_passage_cited": _safe_div(
+            sum(hit(r.cited_chunk_ids, r) for r in citing), len(citing)),
         "judge": getattr(judge, "name", judge.__class__.__name__),
+        "judge_thresholds": {k: getattr(judge, k) for k in
+                             ("support_threshold", "relevance_threshold", "infer_threshold")
+                             if hasattr(judge, k)},
     }

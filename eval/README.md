@@ -15,10 +15,11 @@ python -m eval.trulens_eval         # TruLens feedback-provider integration (opt
 ## Pieces
 - `scenarios.yaml` — ≥20 labelled synthetic scenarios with supporting passages; `held_out: true`
   marks scenarios excluded from tuning (reported separately).
-- `judge.py` — deterministic embedding (NLI-substitute) judge (temperature-0, cached). Pluggable:
-  an LLM judge with the same interface swaps in for the L2 prompt comparison.
-- `metrics.py` — groundedness, context relevance, faithfulness, hallucination rate (claim-level)
-  + route accuracy and escalation precision/recall (label-based).
+- `judge.py` — deterministic embedding (NLI-substitute) judge (cached); thresholds are written into
+  every results file. No LLM judge is used.
+- `metrics.py` — groundedness, context relevance, faithfulness, hallucination rate (claim-level;
+  claims are the answer's own sentences) + route accuracy and escalation precision/recall + supporting
+  passage retrieved/cited (label-based, from each scenario's pinned clause).
 - `agent_sut.py` — the default system-under-test: the shipped worker pipeline
   (`run_complaint_pipeline`) with the real retrieval app. Contexts are the passages the run
   retrieved (its `tool_call` events); claims are the sentences of a completed determination's

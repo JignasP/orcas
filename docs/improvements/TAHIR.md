@@ -93,14 +93,14 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 - LLM-judge claim: [evaluation.md](../work/tahir/evaluation.md) §3
 
 **What to do**
-- [ ] Take claims only from the answer's own text; stop counting copied passage sentences as claims.
-- [ ] Add a label-based metric, **supporting-passage hit**: does the expected `doc_id` + `clause_id` appear in the citations, and in the retrieved contexts?
-- [ ] Recompute everything and replace the tables in `evaluation.md` and `report-sections.md`. Mark the old numbers as superseded and say why; this goes in "what didn't work".
-- [ ] Remove the synthetic live-scoring numbers and the LLM-judge sentence, unless you actually add one.
-- [ ] State the judge and its thresholds next to every table.
+- [x] Take claims only from the answer's own text; stop counting copied passage sentences as claims.
+- [x] Add a label-based metric, **supporting-passage hit**: does the expected `doc_id` + `clause_id` appear in the citations, and in the retrieved contexts?
+- [x] Recompute everything and replace the tables in `evaluation.md` and `report-sections.md`. Mark the old numbers as superseded and say why; this goes in "what didn't work".
+- [x] Remove the synthetic live-scoring numbers and the LLM-judge sentence, unless you actually add one.
+- [x] State the judge and its thresholds next to every table.
 
 **Done when**
-- [ ] Every number in your docs comes from the agent and names the model it ran on.
+- [x] Every number in your docs comes from the agent and names the model it ran on. *(Stub mode now; live-model numbers follow M2 + J3.)*
 
 ### T3 · Deliberate change (L3) and prompt comparison (L2) on the agent
 **Requirements:** L3 (before/after), L2 · **Audit:** L2, L3
