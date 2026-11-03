@@ -198,7 +198,10 @@ Why this addresses the corpus difficulty (frameworks list what they cover, not w
 - **Clause-aligned chunks with heading-path metadata** keep a clause together with its governing heading, so "covers: banks, NBFCs, …" is retrievable as one unit.
 - **`framework` filter on search** lets the agent deliberately query the *other* regulator.
 - **Scope cards** are derived summaries of coverage clauses that give the agent an entry point when the complaint's vocabulary does not match the framework's. Rule: a scope card is a *finding aid*, not evidence. Citations must resolve to the **source clause chunk**, never to the summary.
-- **Hybrid retrieval (dense + BM25)** [TBD by Tahir after a quick A/B on the eval set].
+- **Hybrid retrieval (dense + BM25, reciprocal-rank fusion)** was A/B-tested and is **off by default**: on six
+  framework-filtered probes clause/dense and clause/hybrid both reached recall@5 0.833, and on the evaluation
+  set dense and hybrid each found 5 of the 15 pinned supporting passages in the top 5. It stays available as
+  `mode=hybrid`. Details: `docs/work/tahir/chunking.md`.
 - **Idempotency**: chunk IDs are content hashes, so re-running never duplicates. Re-embedding replaces vectors for one `model_tag` by id; no full rebuild.
 - **Freshness**: `index_info` records build time, document versions, chunk counts and model tag; exposed as metrics and in every determination as `index_version`.
 

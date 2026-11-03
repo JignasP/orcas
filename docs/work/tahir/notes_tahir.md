@@ -377,6 +377,21 @@ past the regex — Jignas's J10), 0 false rejections. Baseline: route 0.880 (mis
 
 **Open:** peer review of the labels by Mitesh or Jignas.
 
+### 2026-11-03 — T11: circular-level references and docs
+
+**What didn't work:** `circular_ref` fell back to the document title when the manifest had no
+`circular_no`, so RBI and MF Regulations citations carried no circular-level reference (F5).
+
+**Did**
+- Manifest: MF Regulations `circular_no` = "Gazette notification S.O. 856 (E), 9 December 1996" (PDF
+  page 7). The RBI scheme PDF prints no notification number anywhere (searched every page), so its
+  `circular_no` is the statutory basis from the preamble, with a note to copy the RBI notification
+  number from RBI's own notification if needed — never from memory. Each entry records its source.
+- Re-ingested a copy of the index: the pinned §4.1 and MF chunk ids are unchanged and now carry the
+  new references. (Local `data/` needs `make ingest`; Compose builds from the manifest.)
+- ARCHITECTURE §5: hybrid retrieval decided (off by default) with its numbers; report section A notes
+  the citation references; the Eval-1 addendum explains the content-based `index_version` (T8).
+
 ---
 
 ## Benchmark & metric ledger (quick reference)
