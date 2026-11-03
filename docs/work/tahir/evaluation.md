@@ -128,10 +128,34 @@ faithfulness 0.800 (§5.2). Recorded in `notes_tahir.md` under "what didn't work
 
 ## 7. Experiments, cache, live scoring (Slice 6)
 
-### 7.1 Deliberate change and 7.2 variant comparison — baseline only, to be re-run on the agent
-The framework-filter before/after and the dense-vs-hybrid comparison in `eval/results/experiment.json`
-were run on the keyword baseline with the old (copied-passage) claims, so they do not describe the
-agent and are not reported. They are re-run on the agent, with prompt variants for L2, in T3.
+### 7.1 Deliberate change (L3) and prompt comparison (L2): pre-registered, on the agent
+The old framework-filter before/after and dense-vs-hybrid comparison ran on the keyword baseline with
+copied-passage claims; they are withdrawn and their results file removed. Hybrid retrieval was also
+re-checked against the pinned supporting passages (complaint text as query, top 5): dense and hybrid
+both find 5 of 15, so it is not a useful deliberate change.
+
+Both experiments are now **pre-registered** in `eval/experiments.yaml`: change, hypothesis and primary
+metric were committed before any result exists, and git history shows the order.
+
+| Experiment | Requirement | Change | Primary metric |
+|---|---|---|---|
+| `l2-reflect-prompt` | L2 | reflect prompt v1 vs v2 (modifier and exclusion hunt) | route accuracy |
+| `l3-cite-by-evidence-number` | L3 | draft prompt v1 (copy chunk ids) vs v2 (cite numbered evidence) | supporting passage cited |
+
+`python -m eval.experiment run <name> --llm gateway` evaluates both configurations on the same 22
+scenarios and model, each in a fresh process with its environment overrides, and writes
+`eval/results/exp-<name>.json` with all four RAG metrics, the label metrics, supporting-passage hits,
+LLM call counts and a verdict on the primary metric (deltas of one or two scenarios are flagged as
+within noise). `compare <name> before.json after.json` does the same for two existing results files.
+
+**Status:** both need a live model (stub replies do not depend on prompt wording; the harness refuses
+stub mode unless `--allow-stub`) and Mitesh's prompt-version switch (M13; L3 also needs M3's draft v2).
+A stub-mode plumbing run gave identical results and the harness warned that the override had no
+effect, as expected before M13.
+
+**Budget:** one configuration is 22 scenarios × roughly 4–11 LLM calls, so one experiment is about
+180–480 calls. Check the hosted free tier's daily quota first; if it does not fit, run against an
+Ollama-backed gateway and say so in the report.
 
 ### 7.3 Retrieval cache effect (D7) (`python -m eval.cache_effect`)
 Key = `sha256(normalised_query | filters | mode | k | index_version)`; Redis when `REDIS_URL` set,
@@ -151,5 +175,5 @@ synthetic feedback, so its output is **not** a measurement and is not reported. 
 from Postgres into `eval_scores` is T6.
 
 ## 8. Next
-T3: deliberate change and reflect-prompt comparison on the agent. T6: live scoring on real runs.
+T3: run the two pre-registered experiments once M13 and a live model are available. T6: live scoring on real runs.
 Live-model results once a model is reachable.

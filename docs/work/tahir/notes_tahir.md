@@ -284,6 +284,30 @@ feedback up-rate (0.727) came from a fixed pattern (`i % 4`), not users.
   agent searches with `k=5`, so it never sees clause 9 and cites clause 10. Retrieval-side follow-up:
   the non-maintainability clause outranks the grounds clause for "deficiency in service" queries.
 
+### 2026-11-03 — T3: pre-registered agent experiments (L3, L2)
+
+**What didn't work:** the deliberate change (framework filter) and the "L2" comparison (dense vs
+hybrid) were run on the keyword baseline, and L2 asks for prompt variants, not retrieval modes.
+Re-checked hybrid against the pinned passages: dense and hybrid both find 5 of 15 in the top 5, so
+hybrid is not a useful deliberate change either.
+
+**Did**
+- `eval/experiments.yaml`: two experiments with change, hypothesis and primary metric committed
+  before any run — `l2-reflect-prompt` (reflect v1 vs v2, route accuracy) and
+  `l3-cite-by-evidence-number` (draft v1 vs v2, supporting passage cited).
+- `eval/experiment.py` rewritten: `run` evaluates each configuration in a fresh process with its env
+  overrides (so import-time reads apply) and compares; `compare` works on two results files. Reports
+  the four RAG metrics, label metrics, passage hits, LLM calls and a primary-metric verdict with a
+  noise flag. Refuses stub mode for experiments that need a live model; warns when an override had
+  no effect or the models differ.
+- `make experiment NAME=...`; the eval CLI now defaults service logs to WARNING.
+- Removed the withdrawn `eval/results/experiment.json`.
+
+**Plumbing check:** stub-mode run of `l2-reflect-prompt` gave identical results (70 LLM calls each)
+and the "override had no effect" warning, as expected before Mitesh's M13. Not committed.
+
+**Open:** both runs need a live model and M13 (L3 also needs M3).
+
 ---
 
 ## Benchmark & metric ledger (quick reference)

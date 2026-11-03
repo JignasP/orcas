@@ -6,7 +6,8 @@ make eval-live                 # the agent, live model behind LLM_GATEWAY_URL ->
 make eval-baseline             # keyword baseline (reference only)   -> eval/results/baseline.json
 python -m eval.run_eval --via-gateway http://localhost:8000   # a running Compose stack -> agent-compose.json
 python -m eval.benchmark_chunking   # Slice-4 chunking A/B
-python -m eval.experiment           # deliberate-change before/after + variant comparison
+python -m eval.experiment list      # pre-registered agent experiments (L2, L3)
+python -m eval.experiment run l2-reflect-prompt --llm gateway   # before/after on a live model
 python -m eval.cache_effect         # retrieval cache hit ratio + latency (cold vs warm)
 python -m eval.live_scorer          # L6 live sampled scoring + feedback aggregation
 python -m eval.trulens_eval         # TruLens feedback-provider integration (optional)
@@ -25,6 +26,8 @@ python -m eval.trulens_eval         # TruLens feedback-provider integration (opt
   retrieved (its `tool_call` events); claims are the sentences of a completed determination's
   basis. Stub mode reflects the stub's canned replies, not model quality.
 - `sut.py` — keyword baseline answerer, kept only as a reference point.
+- `experiments.yaml` + `experiment.py` — pre-registered agent experiments: hypothesis and primary
+  metric are committed before running; each configuration runs in a fresh process with its env overrides.
 - `run_eval.py` — batch CLI (prints a per-scenario table for the agent); `benchmark_chunking.py` —
   chunking A/B; `trulens_eval.py` — TruLens wiring.
 

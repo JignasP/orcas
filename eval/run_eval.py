@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -161,6 +162,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    # The in-process services log every HTTP call at INFO; keep the eval output readable.
+    os.environ.setdefault("LOG_LEVEL", "WARNING")
     return run(build_parser().parse_args(argv))
 
 

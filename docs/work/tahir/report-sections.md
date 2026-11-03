@@ -84,9 +84,11 @@ deciding clause 9 seventh, below the agent's `k=5`). Live-model results follow o
 faithfulness 0.800, hallucination 0.267, supporting passage retrieved 0.333; label metrics 1.0 by
 construction.
 
-- **Deliberate change and prompt-variant comparison (L2):** the earlier framework-filter before/after and
-  dense-vs-hybrid comparison ran on the keyword baseline, so they are withdrawn; both are re-run on the
-  agent (deliberate change + reflect v1 vs v2).
+- **Deliberate change (L3) and prompt comparison (L2):** the earlier framework-filter and dense-vs-hybrid
+  comparisons ran on the keyword baseline, so they are withdrawn. Two agent experiments are pre-registered
+  in `eval/experiments.yaml` (hypothesis and primary metric committed before running): reflect prompt v1 vs
+  v2 (L2, route accuracy) and citing by evidence number vs copying chunk ids (L3, supporting passage cited).
+  They run with `python -m eval.experiment run <name>` once a live model and the prompt-version switch exist.
 - **Retrieval cache (D7):** warm p95 ≈ 0.1 ms vs cold ≈ 42 ms; `index_version` in the key invalidates
   stale entries on re-index.
 - **Live scoring (L6):** being moved from an in-memory demo to scoring sampled real runs into `eval_scores`.
