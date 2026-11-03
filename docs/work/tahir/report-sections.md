@@ -18,6 +18,10 @@ text-layer flag (all have a text layer; no OCR needed).
 | `rbi_integrated_ombudsman_scheme_2021` | Reserve Bank – Integrated Ombudsman Scheme, 2021 | RBI | base 2021 (12-Nov-2021) | 18 |
 | `sebi_scores_master_circular` | Master Circular on redressal of investor grievances through SCORES | SEBI | `…/CIR/2022/0150`, 07-Nov-2022 | 11 |
 
+- **Circular-level citations:** every chunk carries its document's reference from the manifest, copied from
+  the document itself: the SCORES master circular number (`SEBI/HO/OIAE/IGRD/P/CIR/2022/0150`), the MF
+  Regulations' Gazette notification (`S.O. 856 (E)`, 9 December 1996), and the RBI scheme's statutory basis
+  (the scheme PDF prints no notification number, so none is invented).
 - **F3 coverage confirmed:** the SCORES master circular covers listed companies, brokers, depository
   participants, mutual funds/AMCs, registrars/RTAs and depositories — one SEBI document covers the
   registrar/listed-company/depository categories; no extra source needed.

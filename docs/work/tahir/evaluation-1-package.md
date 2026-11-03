@@ -118,7 +118,10 @@ chunks, so those IDs no longer exist. **This addendum is the current reference a
 kept as the point-in-time Evaluation 1 record. The pinned passages are checked by
 `tests/eval/test_reference_case.py`, which fails if a re-ingest changes them.
 
-**Index:** `index_version = minilm-l6-v2.clause.20261013T074855Z.637` (637 chunks, clause strategy).
+**Index:** 637 chunks, clause strategy. Since incremental ingest (T8, #24) `index_version` is derived from
+the chunk ids: `minilm-l6-v2.clause.637.dd539860ac65`. Builds before that used a timestamped string for the
+same chunks (`minilm-l6-v2.clause.20261013T074855Z.637`). The chunk ids below are content hashes and do not
+change either way.
 
 ### Pinned passages
 

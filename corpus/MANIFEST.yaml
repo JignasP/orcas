@@ -10,6 +10,9 @@
 #   title           official title
 #   issuer          SEBI | RBI
 #   framework       SEBI | RBI  (used by the retrieval `framework` filter)
+#   circular_no     circular / notification reference, copied from the document (never from memory);
+#                   ingest stores it as each chunk's circular_ref, which citations carry
+#   circular_no_source  where in the document circular_no was read
 #   source_url      the exact URL the file was downloaded from
 #   version         version/date as printed on/declared by the document
 #   downloaded_at   ISO date the file was fetched
@@ -29,6 +32,8 @@ documents:
     title: "SEBI (Mutual Funds) Regulations, 1996"
     issuer: SEBI
     framework: SEBI
+    circular_no: "Gazette notification S.O. 856 (E), 9 December 1996"
+    circular_no_source: "PDF page 7: Gazette of India Extraordinary, SEBI notification dated 9 December 1996"
     source_url: "https://www.sebi.gov.in/sebi_data/attachdocs/jan-2026/1768571780322.pdf"
     version: "Consolidated as updated to Jan 2026 (162 pp.)"
     downloaded_at: "2026-10-12"
@@ -47,6 +52,10 @@ documents:
     title: "Reserve Bank - Integrated Ombudsman Scheme, 2021"
     issuer: RBI
     framework: RBI
+    circular_no: "Scheme under s.35A Banking Regulation Act 1949, s.45L RBI Act 1934 and s.18 Payment and Settlement Systems Act 2007"
+    circular_no_source: >
+      Preamble of the scheme PDF (statutory basis). The scheme document does not print RBI's
+      notification number; if needed, copy it from RBI's notification of the scheme, not from memory.
     source_url: "https://rbidocs.rbi.org.in/rdocs/content/pdfs/RBIOS2021_121121.pdf"
     amendment_url: "https://rbidocs.rbi.org.in/rdocs/content/pdfs/RBIOS2021_amendments05082022.pdf"
     version: "Base scheme, 2021 (18 pp.; notified 12-Nov-2021). 05-Aug-2022 amendments NOT included."

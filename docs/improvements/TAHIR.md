@@ -250,10 +250,10 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 **Evidence:** [manifest.py:43](../../services/ingest/manifest.py#L43), [MANIFEST.yaml](../../corpus/MANIFEST.yaml)
 
 **What to do**
-- [ ] Add `circular_no` for the RBI scheme (its notification reference) and for the MF Regulations (the gazette or notification reference), copied from the first pages of the PDFs, not from memory. Then re-ingest.
-- [ ] ARCHITECTURE §5: replace "Hybrid retrieval [TBD]" with the decision and its numbers.
-- [ ] `notes_tahir.md`: log the audit findings in your area and how you fixed them; this feeds "what didn't work".
-- [ ] `report-sections.md`:
+- [x] Add `circular_no` for the RBI scheme (its notification reference) and for the MF Regulations (the gazette or notification reference), copied from the first pages of the PDFs, not from memory. Then re-ingest. *(MF: S.O. 856 (E) from PDF page 7. The RBI PDF prints no notification number, so its statutory basis is used and the gap is noted.)*
+- [x] ARCHITECTURE §5: replace "Hybrid retrieval [TBD]" with the decision and its numbers.
+- [x] `notes_tahir.md`: log the audit findings in your area and how you fixed them; this feeds "what didn't work".
+- [x] `report-sections.md`:
   - section C (evaluation): the agent numbers from T1–T3;
   - section D (what didn't work): the baseline-SUT issue and the synthetic live-scoring numbers.
 
