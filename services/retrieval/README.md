@@ -15,8 +15,8 @@ uvicorn services.retrieval.app:app --port 8001
 | `GET /v1/chunks/{chunk_id}` | resolve a chunk; `?quote_span=` verifies the span is a substring |
 | `GET /v1/clauses/{doc_id}/{clause_id}` | fetch by positional clause id |
 | `GET /v1/index/info` | freshness + per-doc info from `index_info.json` |
-| `GET /health` | **liveness** — always 200 while the process is up (never flaps during ingest) |
-| `GET /ready` | **readiness** — 200 only once the index is openable and non-empty (what compose waits on) |
+| `GET /health` | **liveness** — always 200 while the process is up (never flaps during ingest); reports `model_loaded` |
+| `GET /ready` | **readiness** — 200 only once the index is openable and non-empty **and** the embedding model is loaded (what compose waits on) |
 
 ## Hardening (Slice 7)
 Every `/v1/search` is bounded by `RETRIEVAL_TIMEOUT_S` (default 10s) → 504 on overrun. An empty
@@ -40,7 +40,10 @@ docker run --rm -v orcas-data:/data orcas-ingest                 # populate the 
 docker run --rm -p 8001:8001 -v orcas-data:/data orcas-retrieval # serve
 curl -s localhost:8001/health && curl -s localhost:8001/metrics | head
 ```
-`/health` returns 503 until the index volume is populated, then 200.
+`/health` is 200 as soon as the process is up. `/ready` returns 503 until the index volume is
+populated and the embedding model has loaded (warmed in the background at startup; about 10 s on a
+laptop CPU), then 200. Without the warm-up, the first search loaded the model inside its 10 s timeout
+and could fail with a 504.
 
 ## Filters & modes (Slice 4)
 - Scalar filters `framework` / `doc_id` / `chunk_type` are pushed to Chroma.

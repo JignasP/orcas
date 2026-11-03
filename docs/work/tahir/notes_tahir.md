@@ -220,6 +220,17 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 
 **Demo readiness:** items #2 (valid request, citations resolve), #10 (§4.1 passages + routed answer) and the #5 answerable/unanswerable are all drivable from the client now.
 
+### 2026-11-03 — post-audit: warm the embedding model at startup (T12, pulled forward)
+
+**What didn't work:** `/ready` only checked the index, so Compose marked retrieval ready before the
+embedding model was loaded. The first search then loaded the model inside its 10 s request timeout.
+Measured on a laptop: the cold load takes about 10 s, and an eval run failed with a 504 on its first
+search. In a demo, that would be the first complaint.
+
+**Did:** retrieval warms the model in a background thread at startup; `/health` (liveness) stays 200
+and now reports `model_loaded` truthfully; `/ready` is 503 until the index is non-empty **and** the
+model is loaded. Real uvicorn check: `/ready` flipped to 200 at 10.3 s; first search 65 ms.
+
 ## Slice 8 — Report sections + freeze (Days 41–43)
 
 ### 2026-10-13 — report consolidated + freeze
