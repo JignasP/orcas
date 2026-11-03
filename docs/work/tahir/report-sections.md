@@ -127,6 +127,14 @@ the label scheme but misses the three paraphrased injections).
   segmenter had folded into the chunk indexed as clause `60-2`.
 - **Segmentation is a regex heuristic**, not a legal parser — dense index pages produce some noisy clause
   titles; documented, not hidden.
+- **The embedding model's name is still in the repository** (Dockerfiles bake it at build time; code
+  defaults name it). Strict D4 would pass it as a build argument from `.env`, but that makes building the
+  images depend on `.env` and on a coordinated Compose change in the final week, a risk to the "starts from
+  a clean clone" gate. It is a free, local model that the brief itself suggests; the LLM provider's model
+  names are configuration only.
+- **TruLens is a secondary view.** It scores the agent's runs with the same embedding judge through TruLens
+  feedback primitives; its raw cosine scores are not comparable with the thresholded claim-level metrics,
+  which stay primary.
 - **The retrieval Docker image was not built in-repo** (Docker daemon offline, limited disk) — Dockerfiles
   and env wiring are validated; the image must be built on a Docker host / CI.
 
