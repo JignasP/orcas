@@ -42,6 +42,16 @@ How ORCAS segments the corpus and why, with the Slice-4 benchmark that justifies
 outweighed by citable, grounded provisions and sharper ranking, which is what verification and the
 §4.1 case depend on.
 
+## Retrieval orchestration (LangChain, L1)
+Dense search runs through LangChain: `services/retrieval/langchain_retriever.py` defines
+`MiniLMEmbeddings` (LangChain `Embeddings` over the local MiniLM model shared with ingest) and
+`OrcasDenseRetriever` (a LangChain `BaseRetriever` over the Chroma collection, with scalar filters
+pushed down as a `where`). `Retriever.search` calls `retriever.invoke(query)`, so LangChain callbacks
+and tracing apply to every search; hybrid mode fuses those dense results with BM25 via RRF, and the
+list-valued entity/product filters are applied afterwards. Introducing it changed no results: six
+reference queries (dense, hybrid, filtered) returned identical chunk ids and scores before and after.
+Only `langchain-core` is used, to keep the image small and avoid version coupling with Chroma.
+
 ## Caveats
 Segmentation is a regex heuristic, not a legal parser: dense index pages (e.g. the MF Regulations
 "arrangement of regulations") produce some noisy clause titles, and annexure numbering restarts

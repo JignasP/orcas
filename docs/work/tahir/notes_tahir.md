@@ -156,6 +156,15 @@ Honest finding (→ report "what didn't work"): fixed-window wins *raw* recall@k
 - `mf_redemption_delay` supporting passage still weak (clause `24-2#15`) — re-pick in Slice 5.
 - Segmentation is a heuristic (noisy titles on dense index pages) — documented in `chunking.md`.
 
+### 2026-11-03 — post-audit: retrieval through LangChain (T7)
+
+**What didn't work:** L1 requires LangChain or LlamaIndex for retrieval, and the README said
+LangChain was used, but no code imported it (only an unused `langchain-core` dependency in the
+worker). **Did:** `services/retrieval/langchain_retriever.py` — `MiniLMEmbeddings` (LangChain
+`Embeddings`) and `OrcasDenseRetriever` (LangChain `BaseRetriever` over Chroma); the service's dense
+path calls `invoke()`. Six reference queries returned identical chunk ids and scores before and
+after. Only `langchain-core` is added.
+
 ## Slice 5 — Evaluation harness + baseline numbers (Days 23–30)
 
 ### 2026-10-13 — eval harness + Day-30 baseline

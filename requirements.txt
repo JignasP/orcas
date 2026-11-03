@@ -7,6 +7,7 @@ sentence-transformers>=2.7,<4
 pypdf>=4.2
 pyyaml>=6.0
 rank-bm25>=0.2.2
+langchain-core>=0.3,<2  # retrieval orchestration (L1)
 
 # Retrieval service API
 fastapi>=0.110

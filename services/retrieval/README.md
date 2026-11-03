@@ -11,7 +11,7 @@ uvicorn services.retrieval.app:app --port 8001
 ## Endpoints (v0)
 | Endpoint | Status |
 |---|---|
-| `POST /v1/search` | dense search; filters `framework`, `doc_id`, `chunk_type` pushed to Chroma |
+| `POST /v1/search` | dense search through a LangChain retriever (`langchain_retriever.py`); filters `framework`, `doc_id`, `chunk_type` pushed to Chroma |
 | `GET /v1/chunks/{chunk_id}` | resolve a chunk; `?quote_span=` verifies the span is a substring |
 | `GET /v1/clauses/{doc_id}/{clause_id}` | fetch by positional clause id |
 | `GET /v1/index/info` | freshness + per-doc info from `index_info.json` |
