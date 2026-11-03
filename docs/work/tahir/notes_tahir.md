@@ -214,6 +214,11 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 - Per-request **timeout** (`RETRIEVAL_TIMEOUT_S`, default 10s) via a ThreadPool future → **504** on overrun (`with_timeout` helper, unit-tested).
 - **Graceful empty-index:** search returns `count:0` (no crash), lookups 404, `/ready` 503 — tested on a fresh empty collection.
 
+**2026-11-03 update (T12, post-audit):** a search that timed out while still queued behind busy
+workers ran anyway once a worker freed up, for a caller that had already received a 504. It is now
+cancelled on timeout; a search that already started still finishes in the background (Python threads
+cannot be interrupted). Concurrency stays capped at `RETRIEVAL_WORKERS`.
+
 **Handoff:** `loadtest/payloads.json` — 22 valid `complaint.v1` bodies derived from scenarios, for Jignas's Locust. `loadtest/README.md` explains usage. (This is the Day-28 "final scenario payloads → Jignas" handoff.)
 
 **Tests:** +7 (web feedback + passage_text; `/health`/`/ready`, `with_timeout` 504, empty-index). **60 total pass.** Live smoke: retrieval /health 200 + /ready 200; web submit→feedback OK.
