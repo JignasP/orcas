@@ -1,74 +1,33 @@
-"""Live quality scoring (L6).
+"""Live quality scoring (L6): score a deterministic sample of real completed runs.
 
-Samples N% of completed runs, scores each with the same metrics judge, and writes rows to an
-``eval_scores`` store that Jignas's Grafana charts as "quality over time". Feedback (up/down)
-is aggregated alongside. The RunStore / EvalScoreStore / FeedbackStore here are in-memory
-seams with the exact shape Jignas's Postgres tables provide (the brief says: run the scorer
-against an in-memory RunStore until the DB exists).
+Reads completed runs from Postgres, takes each run's evidence the same way the evaluation does
+(eval/run_evidence.py: claims = the basis sentences, contexts = the passages the run retrieved),
+scores it with the same embedding judge, and writes one `eval_scores` row per metric through the
+shared RunStore. The worker-metrics exporter turns those rows into `orcas_eval_score{metric=...}`,
+which Grafana charts as quality over time.
 
-Sampling is deterministic (stable hash of run_id) so a run is either always sampled or never —
-reproducible, and ~rate of runs are included.
+Sampling is a stable hash of the run id, so a run is either always or never sampled. Runs already
+scored are skipped, so passes are idempotent. Runs with no retrieved passages in their trace (for
+example, answers served from the run cache) are skipped rather than scored against nothing.
 
-Run:  python -m eval.live_scorer     (seeds demo runs from the scenarios, scores, prints)
+  python -m eval.live_scorer              # one pass over runs finished in the last 24 h
+  python -m eval.live_scorer --loop 60    # keep scoring every 60 s (Compose service)
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import os
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
-
-import yaml
-
-from services.corpus_common.constants import repo_root
+import sys
+import time
+from typing import Iterable, Iterator, Optional, Tuple
 
 from .judge import EmbeddingJudge, Judge
-from .sut import BaselineSUT
+from .run_evidence import claims_from_determination, contexts_from_events
 
 SAMPLE_RATE = float(os.getenv("LIVE_SCORE_SAMPLE_RATE", "0.2"))
-
-
-@dataclass
-class RunRecord:
-    run_id: str
-    question: str
-    status: str            # completed | escalated | ...
-    route: str = ""
-    claims: List[str] = field(default_factory=list)
-    contexts: List[str] = field(default_factory=list)
-
-
-class InMemoryRunStore:
-    def __init__(self, runs: List[RunRecord] = None):
-        self._runs = runs or []
-
-    def add(self, run: RunRecord):
-        self._runs.append(run)
-
-    def list_completed(self) -> List[RunRecord]:
-        return [r for r in self._runs if r.status == "completed"]
-
-
-class InMemoryEvalScoreStore:
-    def __init__(self):
-        self.rows: List[dict] = []
-
-    def write(self, row: dict):
-        self.rows.append(row)
-
-
-class InMemoryFeedbackStore:
-    def __init__(self):
-        self._fb: Dict[str, str] = {}
-
-    def add(self, run_id: str, rating: str):  # rating in {"up","down"}
-        self._fb[run_id] = rating
-
-    def aggregate(self) -> dict:
-        up = sum(1 for v in self._fb.values() if v == "up")
-        total = len(self._fb)
-        return {"total": total, "up": up, "down": total - up,
-                "up_rate": round(up / total, 3) if total else None}
+SOURCE = "live_scorer"
+METRICS = ("groundedness", "faithfulness", "context_relevance", "hallucination_rate")
 
 
 def is_sampled(run_id: str, rate: float = SAMPLE_RATE) -> bool:
@@ -76,70 +35,112 @@ def is_sampled(run_id: str, rate: float = SAMPLE_RATE) -> bool:
     return bucket < round(rate * 100)
 
 
-def score_run(run: RunRecord, judge: Judge) -> Optional[dict]:
-    if not run.claims:
+def score_run(determination: dict, events: list, question: str, judge: Judge) -> Optional[dict]:
+    """Same computations as eval/metrics.py, for one run; None when there is nothing to judge."""
+    claims = claims_from_determination(determination)
+    contexts = contexts_from_events(events)
+    if not claims or not contexts:
         return None
-    ctx = run.contexts or [""]
-    supported = sum(1 for c in run.claims if judge.supports(c, ctx))
-    inferable = sum(1 for c in run.claims if judge.inferable(c, ctx))
-    rel = sum(1 for p in run.contexts if judge.relevant(p, run.question)) if run.contexts else 0
-    n = len(run.claims)
+    supported = sum(1 for c in claims if judge.supports(c, contexts))
+    inferable = sum(1 for c in claims if judge.inferable(c, contexts))
+    relevant = sum(1 for p in contexts if judge.relevant(p, question))
     return {
-        "run_id": run.run_id,
-        "groundedness": round(supported / n, 3),
-        "faithfulness": round(inferable / n, 3),
-        "context_relevance": round(rel / len(run.contexts), 3) if run.contexts else None,
-        "hallucinated": supported < n,
+        "groundedness": round(supported / len(claims), 3),
+        "faithfulness": round(inferable / len(claims), 3),
+        "context_relevance": round(relevant / len(contexts), 3),
+        "hallucination_rate": float(supported < len(claims)),  # per run: 1 if any claim unsupported
+        "_counts": {"claims": len(claims), "contexts": len(contexts)},
     }
 
 
-def run_live_scoring(run_store: InMemoryRunStore, score_store: InMemoryEvalScoreStore,
-                     feedback_store: InMemoryFeedbackStore = None, rate: float = SAMPLE_RATE,
-                     judge: Judge = None) -> dict:
+class PostgresRunSource:
+    """Completed runs not yet scored by this scorer (id, determination, complaint text), oldest first."""
+
+    def __init__(self, url: Optional[str] = None, since_hours: float = 24.0):
+        from libs.orcas_common.config import database_url
+
+        self.url = url or database_url()
+        self.since_hours = since_hours
+
+    def candidates(self) -> Iterator[Tuple[str, dict, str]]:
+        import psycopg
+
+        with psycopg.connect(self.url) as connection:
+            rows = connection.execute(
+                "SELECT r.run_id::text, r.result, r.payload->>'text' FROM runs r "
+                "WHERE r.status = 'completed' AND r.result IS NOT NULL "
+                "AND r.finished_at > NOW() - make_interval(secs => %s) "
+                "AND NOT EXISTS (SELECT 1 FROM eval_scores e WHERE e.run_id = r.run_id "
+                "AND e.details->>'source' = %s) ORDER BY r.finished_at",
+                (self.since_hours * 3600, SOURCE),
+            ).fetchall()
+        yield from rows
+
+    def events(self, run_id: str) -> list:
+        import psycopg
+        from psycopg.rows import dict_row
+
+        with psycopg.connect(self.url, row_factory=dict_row) as connection:
+            return connection.execute(
+                "SELECT kind, payload FROM run_events WHERE run_id = %s ORDER BY seq", (run_id,),
+            ).fetchall()
+
+
+def run_live_scoring(source, store, rate: float = SAMPLE_RATE, judge: Judge = None) -> dict:
+    """One pass: sample candidates, score each, write one eval_scores row per metric."""
     judge = judge or EmbeddingJudge()
-    completed = run_store.list_completed()
-    sampled = [r for r in completed if is_sampled(r.run_id, rate)]
-    for run in sampled:
-        row = score_run(run, judge)
-        if row:
-            score_store.write(row)
-    rows = score_store.rows
-    summary = {
-        "completed_runs": len(completed),
-        "sampled": len(sampled),
-        "sample_rate": rate,
-        "mean_groundedness": round(sum(r["groundedness"] for r in rows) / len(rows), 3) if rows else None,
-        "mean_context_relevance": round(
-            sum(r["context_relevance"] for r in rows if r["context_relevance"] is not None)
-            / max(1, sum(1 for r in rows if r["context_relevance"] is not None)), 3) if rows else None,
-        "hallucination_rate": round(sum(r["hallucinated"] for r in rows) / len(rows), 3) if rows else None,
-    }
-    if feedback_store is not None:
-        summary["feedback"] = feedback_store.aggregate()
+    thresholds = {k: getattr(judge, k) for k in
+                  ("support_threshold", "relevance_threshold", "infer_threshold") if hasattr(judge, k)}
+    summary = {"candidates": 0, "sampled": 0, "scored": 0, "no_evidence": 0, "sample_rate": rate}
+    totals = {m: 0.0 for m in METRICS}
+    candidates: Iterable[Tuple[str, dict, str]] = source.candidates()
+    for run_id, determination, question in candidates:
+        summary["candidates"] += 1
+        if not is_sampled(run_id, rate):
+            continue
+        summary["sampled"] += 1
+        scores = score_run(determination, source.events(run_id), question or "", judge)
+        if scores is None:
+            summary["no_evidence"] += 1
+            continue
+        counts = scores.pop("_counts")
+        details = {"source": SOURCE, "judge": getattr(judge, "name", type(judge).__name__),
+                   "thresholds": thresholds, "sample_rate": rate, **counts}
+        for metric in METRICS:
+            store.add_eval_score(run_id, metric, scores[metric], details)
+            totals[metric] += scores[metric]
+        summary["scored"] += 1
+    if summary["scored"]:
+        summary["means"] = {m: round(totals[m] / summary["scored"], 3) for m in METRICS}
     return summary
 
 
-def _seed_from_scenarios() -> tuple:
-    """Demo: treat each non-escalation scenario's baseline output as a completed run."""
-    scenarios = yaml.safe_load((repo_root() / "eval" / "scenarios.yaml").read_text())["scenarios"]
-    sut = BaselineSUT()
-    rs, fb = InMemoryRunStore(), InMemoryFeedbackStore()
-    for i, s in enumerate(scenarios):
-        res = sut.run(s)
-        status = "escalated" if res.escalated else "completed"
-        rs.add(RunRecord(run_id=f"run-{i:03d}", question=res.question, status=status,
-                         route=res.route, claims=res.claims, contexts=res.contexts))
-        fb.add(f"run-{i:03d}", "up" if i % 4 else "down")  # synthetic feedback
-    return rs, fb
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="orcas-live-scorer", description="Score sampled live runs (L6)")
+    p.add_argument("--loop", type=float, default=0, metavar="SECONDS",
+                   help="repeat every SECONDS; default is a single pass")
+    p.add_argument("--rate", type=float, default=SAMPLE_RATE, help="share of runs to score")
+    p.add_argument("--since-hours", type=float, default=24.0, help="only runs finished this recently")
+    return p
 
 
 def main(argv=None) -> int:
-    rs, fb = _seed_from_scenarios()
-    summary = run_live_scoring(rs, InMemoryEvalScoreStore(), fb)
-    print("live scoring summary (in-memory RunStore seam; Jignas's Postgres replaces it):")
-    for k, v in summary.items():
-        print(f"  {k}: {v}")
-    return 0
+    args = build_parser().parse_args(argv)
+    from libs.orcas_common.runstore import PostgresRunStore
+
+    try:
+        source = PostgresRunSource(since_hours=args.since_hours)
+    except RuntimeError as exc:  # DATABASE_URL missing
+        print(f"live scorer: {exc}", file=sys.stderr)
+        return 2
+    store, judge = PostgresRunStore(source.url), EmbeddingJudge()
+    while True:
+        summary = run_live_scoring(source, store, rate=args.rate, judge=judge)
+        summary["feedback"] = store.feedback_summary()
+        print(f"live scorer: {summary}", flush=True)
+        if not args.loop:
+            return 0
+        time.sleep(args.loop)
 
 
 if __name__ == "__main__":

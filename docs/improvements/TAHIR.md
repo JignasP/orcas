@@ -177,14 +177,14 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 - The Grafana "Quality scores" panel shows only `verification_passed`, written for every run by the worker. That isn't "a small sample scored against the evaluation metrics".
 
 **What to do**
-- [ ] Read completed runs from Postgres (`runs`): contexts from the run's `tool_call` passages in `run_events`, claims from `basis`.
-- [ ] Sample deterministically by `run_id` at `LIVE_SCORE_SAMPLE_RATE`. Agree one default with Jignas: today `.env.example` says 0.1, the code says 0.2 and the docs say 20%.
-- [ ] Write groundedness, context relevance, faithfulness and hallucinated to `eval_scores` via `RunStore.add_eval_score`, skipping runs already scored.
-- [ ] Add a `--loop SECONDS` mode.
-- [ ] Give Jignas the spec for a `live-scorer` Compose service. It needs the embedding model, so reuse the retrieval image and add `psycopg` to its requirements.
+- [x] Read completed runs from Postgres (`runs`): contexts from the run's `tool_call` passages in `run_events`, claims from `basis`.
+- [x] Sample deterministically by `run_id` at `LIVE_SCORE_SAMPLE_RATE`. Agree one default with Jignas: today `.env.example` says 0.1, the code says 0.2 and the docs say 20%. *(Code and docs: 0.2; `.env.example` is J3.)*
+- [x] Write groundedness, context relevance, faithfulness and hallucinated to `eval_scores` via `RunStore.add_eval_score`, skipping runs already scored.
+- [x] Add a `--loop SECONDS` mode.
+- [x] Give Jignas the spec for a `live-scorer` Compose service. It needs the embedding model, so reuse the retrieval image and add `psycopg` to its requirements.
 
 **Done when**
-- [ ] After about 10 demo runs, Grafana shows groundedness and the other metrics over time, from real runs.
+- [ ] After about 10 demo runs, Grafana shows groundedness and the other metrics over time, from real runs. *(Scorer and exporter verified against Postgres; the Grafana panel and Compose service are Jignas's J9 and J3.)*
 
 ### T7 · Retrieval through LangChain (L1)
 **Requirements:** L1 · **Audit:** L1, contradiction 1

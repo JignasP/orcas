@@ -10,3 +10,5 @@ opentelemetry-sdk>=1.29,<2
 opentelemetry-exporter-otlp-proto-http>=1.29,<2
 opentelemetry-instrumentation-fastapi>=0.50b0,<1
 opentelemetry-instrumentation-httpx>=0.50b0,<1
+# live scorer (eval/live_scorer.py) runs from this image: it needs the same embedding model
+psycopg[binary]>=3.2,<4
