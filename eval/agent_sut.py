@@ -182,8 +182,12 @@ class AgentSUT:
             else:
                 from fastapi.testclient import TestClient
 
+                from services.corpus_common.embedding import embed_query
                 from services.retrieval.app import app as retrieval_app
 
+                # Load the embedding model now: a cold load inside the first search can exceed
+                # the retrieval request timeout and fail that run with a 504.
+                embed_query("warm up")
                 self._retrieval_http = ("http://testserver", TestClient(retrieval_app))
         return self._retrieval_http
 
