@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .judge import EmbeddingJudge, Judge
 
@@ -40,6 +40,8 @@ class EvalResult:
     expected_regulator: str = ""
     expected_entity_type: str = ""
     expected_escalation: bool = False
+    # SUT-specific diagnostics (status, citations, models...); not used by the metrics
+    details: Dict[str, Any] = field(default_factory=dict)
 
 
 def split_claims(text: str) -> List[str]:

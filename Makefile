@@ -1,6 +1,6 @@
 # ORCAS — convenience targets (Tahir's eval/retrieval). Jignas owns the full stack targets
 # (compose up, loadtest); this Makefile currently covers what Tahir's slices provide.
-.PHONY: ingest eval test demo up down doctor loadtest
+.PHONY: ingest eval eval-live eval-baseline test demo up down doctor loadtest
 
 up:
 	docker compose up --build -d
@@ -17,8 +17,17 @@ loadtest:
 ingest:
 	python -m services.ingest
 
+# Agent with in-process stub replies (no services needed; reflects the stub, not model quality)
 eval:
 	python -m eval.run_eval
+
+# Agent with the live model behind LLM_GATEWAY_URL; paced for free-tier rate limits
+eval-live:
+	python -m eval.run_eval --llm gateway --sleep 2
+
+# Keyword baseline, kept as a reference point only
+eval-baseline:
+	python -m eval.run_eval --sut baseline
 
 test:
 	python -m pytest tests -q

@@ -60,22 +60,22 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 **Evidence:** [run_eval.py:39](../../eval/run_eval.py#L39), [sut.py](../../eval/sut.py)
 
 **What to do**
-- [ ] Add `eval/agent_sut.py`, which runs `services.worker.tasks.run_complaint_pipeline` in-process:
+- [x] Add `eval/agent_sut.py`, which runs `services.worker.tasks.run_complaint_pipeline` in-process:
   - the real retrieval app is called through `HttpRetrievalClient`, using a FastAPI `TestClient` as the httpx client;
   - the LLM is whatever `LLM_GATEWAY_URL` points at (stub or live);
   - the store is `libs.orcas_common.runstore.InMemoryRunStore`.
 
   This is the same wiring the audit used; ask for the audit harness if you want a starting point.
-- [ ] Optionally add a `--via-gateway URL` mode that submits to the running Compose stack and polls, which is closest to the demo.
-- [ ] Build an `EvalResult` from each determination:
+- [x] Optionally add a `--via-gateway URL` mode that submits to the running Compose stack and polls, which is closest to the demo.
+- [x] Build an `EvalResult` from each determination:
   - `route`, `regulator`, `entity_type` and `escalated` come straight from the determination;
   - claims are the sentences of `basis`;
   - contexts are the passages retrieved during the run, taken from its `tool_call` events, not from the citations.
-- [ ] Add CLI flags: `--sut agent|baseline`, `--tag`, and `--sleep` between scenarios, running sequentially to respect free-tier limits. Record the model (from env), prompt versions and `index_version` in the results JSON.
-- [ ] Make `make eval` run the agent. Keep the old run as `make eval-baseline`, labelled "keyword baseline (reference only)".
+- [x] Add CLI flags: `--sut agent|baseline`, `--tag`, and `--sleep` between scenarios, running sequentially to respect free-tier limits. Record the model (from env), prompt versions and `index_version` in the results JSON.
+- [x] Make `make eval` run the agent. Keep the old run as `make eval-baseline`, labelled "keyword baseline (reference only)".
 
 **Done when**
-- [ ] `eval/results/` holds agent results for stub mode and for the live model.
+- [ ] `eval/results/` holds agent results for stub mode and for the live model. *(Stub: done, `agent-stub.json`. Live: waiting on M2 + J3.)*
 - [ ] The per-scenario table goes to Mitesh daily.
 
 ### T2 · Make the metrics mean something; remove synthetic numbers
