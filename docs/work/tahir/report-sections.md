@@ -91,7 +91,10 @@ construction.
   They run with `python -m eval.experiment run <name>` once a live model and the prompt-version switch exist.
 - **Retrieval cache (D7):** warm p95 ≈ 0.1 ms vs cold ≈ 42 ms; `index_version` in the key invalidates
   stale entries on re-index.
-- **Live scoring (L6):** being moved from an in-memory demo to scoring sampled real runs into `eval_scores`.
+- **Live scoring (L6):** `eval/live_scorer.py` scores a deterministic sample (default 20%) of real completed
+  runs from Postgres with the evaluation's judge and evidence rules, writes groundedness, faithfulness,
+  context relevance and hallucination to `eval_scores`, and Grafana charts them over time via the
+  worker-metrics exporter; feedback is persisted and totalled alongside.
 
 ## D. What did not work (honest)
 

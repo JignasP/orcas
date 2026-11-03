@@ -9,7 +9,7 @@ python -m eval.benchmark_chunking   # Slice-4 chunking A/B
 python -m eval.experiment list      # pre-registered agent experiments (L2, L3)
 python -m eval.experiment run l2-reflect-prompt --llm gateway   # before/after on a live model
 python -m eval.cache_effect         # retrieval cache hit ratio + latency (cold vs warm)
-python -m eval.live_scorer          # L6 live sampled scoring + feedback aggregation
+DATABASE_URL=... python -m eval.live_scorer [--loop 60]   # L6: score sampled real runs into eval_scores
 python -m eval.trulens_eval         # TruLens feedback-provider integration (optional)
 ```
 
@@ -28,6 +28,9 @@ python -m eval.trulens_eval         # TruLens feedback-provider integration (opt
 - `sut.py` — keyword baseline answerer, kept only as a reference point.
 - `experiments.yaml` + `experiment.py` — pre-registered agent experiments: hypothesis and primary
   metric are committed before running; each configuration runs in a fresh process with its env overrides.
+- `run_evidence.py` — claims and retrieved contexts read from a run's determination and events (shared by
+  the evaluation and the live scorer).
+- `live_scorer.py` — scores a deterministic sample of real completed runs from Postgres into `eval_scores`.
 - `run_eval.py` — batch CLI (prints a per-scenario table for the agent); `benchmark_chunking.py` —
   chunking A/B; `trulens_eval.py` — TruLens wiring.
 

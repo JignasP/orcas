@@ -169,11 +169,23 @@ else in-process TTL dict.
 Warm p95 ≈ **0.1 ms** vs cold ≈ 42 ms. The `index_version` in the key means a re-index transparently
 invalidates stale entries. (Coordinate the production Redis numbers with Jignas's load test.)
 
-### 7.4 Live scoring (L6)
-`eval/live_scorer.py` is currently an in-memory demo: it seeds runs from the keyword baseline and uses
-synthetic feedback, so its output is **not** a measurement and is not reported. Scoring real runs
-from Postgres into `eval_scores` is T6.
+### 7.4 Live scoring (L6) — `python -m eval.live_scorer`
+Scores a deterministic sample of **real completed runs** from Postgres with the same evidence rules
+and judge as the evaluation (`eval/run_evidence.py`: claims = the basis sentences, contexts = the
+passages the run retrieved, relevance judged against the complaint text). It writes one
+`eval_scores` row per metric — groundedness, faithfulness, context relevance and a per-run
+hallucination flag (whose average is the hallucination rate) — tagged `source=live_scorer` with the
+judge and thresholds. The worker-metrics exporter publishes `orcas_eval_score{metric=...}`, which
+Grafana charts over time; feedback totals come from the `feedback` table.
+
+- Sample rate `LIVE_SCORE_SAMPLE_RATE` (default 0.2), stable hash of the run id.
+- Already-scored runs are skipped, so passes are idempotent; escalations assert nothing and are not
+  candidates; runs with no retrieved passages (e.g. served from the run cache) are skipped.
+- `--loop 60` keeps scoring (the Compose `live-scorer` service runs this from the retrieval image).
+
+Checked end to end against PostgreSQL 17: three completed agent runs were scored (one run without
+retrieved passages skipped), a second pass scored nothing, and the exporter published the scores.
+The earlier in-memory demo, with synthetic feedback, is removed.
 
 ## 8. Next
-T3: run the two pre-registered experiments once M13 and a live model are available. T6: live scoring on real runs.
-Live-model results once a model is reachable.
+T3: run the two pre-registered experiments once M13 and a live model are available. Live-model results once a model is reachable.

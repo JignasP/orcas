@@ -13,7 +13,6 @@ determination's basis; escalations assert nothing.
 """
 from __future__ import annotations
 
-import re
 import time
 import uuid
 from datetime import date, timedelta
@@ -21,9 +20,13 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from .metrics import EvalResult, split_claims
+from .metrics import EvalResult
+from .run_evidence import (
+    claims_from_determination,
+    contexts_from_events,
+    retrieved_passages,
+)
 
-_CITE_TAG = re.compile(r"\s*\[c\d+\]")
 _TERMINAL = {"completed", "escalated", "failed"}
 # What LLMClient reports when the gateway is unreachable and it answers from its local heuristic.
 HEURISTIC_MODEL = "heuristic-mock"
@@ -41,33 +44,6 @@ def complaint_payload(scenario: dict) -> dict:
     }
 
 
-def _retrieved(events: List[dict]) -> List[dict]:
-    """Passages the run retrieved, in order, de-duplicated by chunk_id."""
-    seen, out = set(), []
-    for event in events:
-        if event.get("kind") != "tool_call":
-            continue
-        for p in (event.get("payload") or {}).get("passages") or []:
-            cid = p.get("chunk_id")
-            if cid in seen:
-                continue
-            seen.add(cid)
-            out.append(p)
-    return out
-
-
-def contexts_from_events(events: List[dict]) -> List[str]:
-    """Passage texts the run retrieved, in order, de-duplicated by chunk_id."""
-    return [p["text"] for p in _retrieved(events) if p.get("text")]
-
-
-def claims_from_determination(det: dict) -> List[str]:
-    """An answer's claims are the sentences of its basis; escalations and failures assert nothing."""
-    if (det or {}).get("status") != "completed":
-        return []
-    return split_claims(_CITE_TAG.sub("", det.get("basis") or ""))
-
-
 def to_result(scenario: dict, det: Optional[dict], events: List[dict],
               status: Optional[str] = None, **details: Any) -> EvalResult:
     det = det or {}
@@ -79,7 +55,7 @@ def to_result(scenario: dict, det: Optional[dict], events: List[dict],
         route=det.get("route", status), regulator=det.get("regulator", ""),
         entity_type=det.get("entity_type", ""), escalated=status == "escalated",
         contexts=contexts_from_events(events), claims=claims_from_determination(det),
-        retrieved_chunk_ids=[p["chunk_id"] for p in _retrieved(events) if p.get("chunk_id")],
+        retrieved_chunk_ids=[p["chunk_id"] for p in retrieved_passages(events) if p.get("chunk_id")],
         cited_chunk_ids=[c["chunk_id"] for c in det.get("citations") or [] if c.get("chunk_id")],
         expected_route=scenario["expected_route"],
         expected_regulator=scenario["expected_regulator"],

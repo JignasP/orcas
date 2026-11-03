@@ -28,6 +28,8 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 
 COPY services/ ./services/
 COPY libs/ ./libs/
+# The live scorer (python -m eval.live_scorer) reuses this image and its baked model.
+COPY eval/ ./eval/
 
 EXPOSE 8001
 # Readiness probe: /ready returns 503 until the index volume is populated by ingest and the

@@ -350,6 +350,30 @@ same risk exists in Compose (`/ready` doesn't load the model), fixed in the next
 neither the preamble nor clause 9 is in the top 5. A query using scope vocabulary ranks clause 10
 first (0.72) and clause 9 second (0.656).
 
+### 2026-11-03 — T6: live scoring on real runs (L6)
+
+**What didn't work:** `live_scorer.py` ran only in memory, seeded from the keyword baseline with
+synthetic feedback, and nothing in Compose ran it. Grafana's "Quality scores" showed only the
+worker's `verification_passed`, written for every run — not a sample scored against the metrics.
+
+**Did**
+- `eval/run_evidence.py`: claims and retrieved contexts from a run's determination and events,
+  shared by the agent evaluation and the live scorer so both judge runs the same way.
+- `eval/live_scorer.py` rewritten: reads completed runs from Postgres, samples by a stable hash
+  (`LIVE_SCORE_SAMPLE_RATE`, default 0.2), scores with the evaluation's judge (relevance against the
+  complaint text), writes groundedness / faithfulness / context relevance / hallucination rows to
+  `eval_scores` (`source=live_scorer`, judge + thresholds), skips already-scored runs and runs with
+  no retrieved passages. `--loop SECONDS` for a Compose service.
+- Retrieval image gains `psycopg` and `eval/`, so the `live-scorer` service reuses its baked model.
+
+**Checked** against a throwaway PostgreSQL 17: the new integration test and the platform's existing
+Postgres test pass. End to end: three completed agent runs persisted and scored (a run without
+retrieved passages skipped), a second pass scored nothing, the exporter published
+`orcas_eval_score{metric=...}`.
+
+**Open:** Jignas adds the `live-scorer` service to Compose (J3) and a quality-over-time panel (J9);
+`.env.example` still says `LIVE_SCORE_SAMPLE_RATE=0.1` — agree on 0.2.
+
 ---
 
 ## Benchmark & metric ledger (quick reference)
