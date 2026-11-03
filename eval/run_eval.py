@@ -33,7 +33,8 @@ RESULTS = repo_root() / "eval" / "results"
 _ORDER = ["n_scenarios", "n_answered", "groundedness", "context_relevance", "faithfulness",
           "hallucination_rate", "route_accuracy", "regulator_accuracy", "entity_accuracy",
           "escalation_precision", "escalation_recall", "n_with_supporting_passage",
-          "supporting_passage_retrieved", "supporting_passage_cited"]
+          "supporting_passage_retrieved", "supporting_passage_cited", "n_expected_intake_rejected",
+          "intake_rejection_recall", "intake_false_rejections"]
 
 
 def _print_table(title: str, m: dict) -> None:
@@ -70,6 +71,16 @@ def _print_scenarios(results: List[EvalResult]) -> None:
               f" reason={d.get('reason_code')} cites={cites}")
 
 
+def intake_rejected(scenario: dict, result: EvalResult) -> bool:
+    """Would the gateway quarantine this complaint? Via the gateway it is what happened; in-process
+    runs bypass the gateway, so ask its guardrail directly."""
+    if "intake" in result.details:
+        return result.details["intake"] == "rejected"
+    from services.gateway.input_guardrails import check_free_text
+
+    return bool(check_free_text({"text": " ".join(scenario["complaint_text"].split())}))
+
+
 def build_sut(args):
     if args.sut == "baseline":
         return BaselineSUT(k=args.k)
@@ -89,6 +100,8 @@ def run(args) -> int:
             time.sleep(args.sleep)  # free-tier providers limit requests per minute
         result = sut.run(scenario)
         result.supporting_chunk_ids = supporting.get(scenario["id"], [])
+        result.expected_intake = scenario.get("expected_intake")
+        result.intake_rejected = intake_rejected(scenario, result)
         results.append(result)
     overall = compute(results, judge)
     held = compute([r for r in results if r.held_out], judge)
@@ -133,6 +146,7 @@ def run(args) -> int:
                                       if r.supporting_chunk_ids else None),
              "supporting_cited": (bool(set(r.cited_chunk_ids) & set(r.supporting_chunk_ids))
                                   if r.supporting_chunk_ids and r.cited_chunk_ids is not None else None),
+             "expected_intake": r.expected_intake, "intake_rejected": r.intake_rejected,
              **{k: v for k, v in r.details.items() if k not in ("prompt_versions", "index_version")}}
             for r in results
         ],

@@ -19,6 +19,11 @@ Supporting-passage metrics (over scenarios whose label pins a supporting passage
   supporting_passage_cited     = share where a cited chunk is the pinned passage (None when the
                                  SUT does not cite, i.e. cited_chunk_ids is None).
 
+Intake metrics (the gateway's job, so independent of the SUT; no judge):
+  intake_rejection_recall = share of scenarios labelled expected_intake=rejected that the gateway
+                            guardrail rejects before any run.
+  intake_false_rejections = number of other scenarios the guardrail rejects (should be 0).
+
 Claims must come from the answer's own text. Sentences copied from the retrieved passages are
 supported by construction and would inflate groundedness.
 """
@@ -52,6 +57,9 @@ class EvalResult:
     supporting_chunk_ids: List[str] = field(default_factory=list)
     retrieved_chunk_ids: List[str] = field(default_factory=list)
     cited_chunk_ids: Optional[List[str]] = None  # None: this SUT does not cite
+    # ingestion boundary: label and whether the gateway guardrail rejected the complaint
+    expected_intake: Optional[str] = None
+    intake_rejected: Optional[bool] = None
     # SUT-specific diagnostics (status, citations, models...); not used by the metrics
     details: Dict[str, Any] = field(default_factory=dict)
 
@@ -105,6 +113,10 @@ def compute(results: List[EvalResult], judge: Judge = None) -> Dict:
     def hit(ids, r):
         return bool(set(ids or []) & set(r.supporting_chunk_ids))
 
+    # --- intake (gateway guardrail) ---
+    must_reject = [r for r in results if r.expected_intake == "rejected" and r.intake_rejected is not None]
+    others = [r for r in results if r.expected_intake != "rejected" and r.intake_rejected is not None]
+
     return {
         "n_scenarios": n,
         "n_answered": len(answered),
@@ -122,6 +134,9 @@ def compute(results: List[EvalResult], judge: Judge = None) -> Dict:
             sum(hit(r.retrieved_chunk_ids, r) for r in labelled), len(labelled)),
         "supporting_passage_cited": _safe_div(
             sum(hit(r.cited_chunk_ids, r) for r in citing), len(citing)),
+        "n_expected_intake_rejected": len(must_reject),
+        "intake_rejection_recall": _safe_div(sum(r.intake_rejected for r in must_reject), len(must_reject)),
+        "intake_false_rejections": sum(r.intake_rejected for r in others) if others else None,
         "judge": getattr(judge, "name", judge.__class__.__name__),
         "judge_thresholds": {k: getattr(judge, k) for k in
                              ("support_threshold", "relevance_threshold", "infer_threshold")

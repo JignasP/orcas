@@ -6,23 +6,29 @@ Run: `make eval` (the agent, stub replies → `eval/results/agent-stub.json`), `
 `baseline.json`).
 
 ## 1. Scenarios
-`eval/scenarios.yaml` — **22 synthetic scenarios** (coverage below), each with `expected_route`,
+`eval/scenarios.yaml` — **25 synthetic scenarios** (coverage below), each with `expected_route`,
 `expected_regulator`, `expected_entity_type`, `expected_escalation`, and a `supporting_passage`
-(doc_id + clause_id + exact quote) where a provision applies (15 of 22). **6 are `held_out: true`**
-and excluded from any tuning, reported separately (anti-overfitting).
+(doc_id + clause_id + exact quote) where a provision applies (15 of 25). **7 are `held_out: true`**
+and excluded from any tuning — including the LLM stub's keyword rules — and reported separately.
+The 5 injection scenarios also carry `expected_intake: rejected`: the gateway should quarantine them
+before any run. In-process evaluation runs them straight through the agent as well, to test the
+agent's own defence.
 
 | Category | n | Category | n |
 |---|---|---|---|
 | §4.1 bank FD (+2 paraphrases) | 3 | RBI payment/ATM | 2 |
 | Mutual fund servicing | 2 | Split regulators → escalate | 2 |
 | Broker | 2 | Out-of-corpus (insurer/pension) → escalate | 2 |
-| Registrar / share transfer | 2 | Prompt injection → escalate | 2 |
+| Registrar / share transfer | 2 | Prompt injection → reject at intake / escalate | 5 |
 | Listed company | 2 | Ambiguous / vague → escalate | 1 |
 | Depository / demat | 2 | | |
 
 Labels are pinned from the actual clauses (not memory); every pinned supporting clause resolves to
-an indexed chunk containing its quote. Labels should still be **peer-reviewed with a teammate**
-before the final run (a wrong label corrupts every metric).
+an indexed chunk containing its quote. The two mutual-fund scenarios were re-pinned on 2026-11-03 to
+Regulation 60A (the AMC must redress investor grievances within twenty-one calendar days; indexed
+under clause `60-2`) — the old pin was an amendment footnote about an omitted provision. Labels
+still need **peer review by a teammate** before the final run: `docs/work/tahir/scenario-review.md`
+lists every label with its passage and a sign-off box.
 
 ## 2. System under test (SUT)
 **Default: the shipped agent** (`eval/agent_sut.py`). It runs the worker's
@@ -65,6 +71,11 @@ Label metrics are computed over **all** scenarios (no judge → more trustworthy
 - **Route / regulator / entity accuracy** = exact match vs expected.
 - **Escalation precision / recall** = escalation as the positive class.
 
+Intake metrics (the gateway's job, independent of the SUT; no judge):
+- **Intake rejection recall** = share of the `expected_intake: rejected` scenarios that the gateway
+  guardrail rejects (in-process runs ask the guardrail directly; via-gateway runs use the response).
+- **Intake false rejections** = number of other scenarios the guardrail rejects (should be 0).
+
 Supporting-passage metrics are computed over the 15 scenarios that pin a passage (no judge):
 - **Supporting passage retrieved** = share where a retrieved chunk is the pinned clause's chunk.
 - **Supporting passage cited** = share where a cited chunk is the pinned clause's chunk (not
@@ -74,55 +85,63 @@ Supporting-passage metrics are computed over the 15 scenarios that pin a passage
 
 ### 5.1 The agent, stub mode — `eval/results/agent-stub.json`
 
-| Metric | All (22) | Held-out (6) |
+| Metric | All (25) | Held-out (7) |
 |---|---|---|
-| answered (non-escalated) | 5 | 2 |
+| answered (non-escalated) | 6 | 2 |
 | groundedness | 1.000 | 1.000 |
-| context_relevance | 0.360 | 0.400 |
+| context_relevance | 0.400 | 0.400 |
 | faithfulness | 1.000 | 1.000 |
 | hallucination_rate | 0.000 | 0.000 |
-| route_accuracy | 0.409 | 0.500 |
-| regulator_accuracy | 0.273 | 0.167 |
-| entity_accuracy | 0.273 | 0.333 |
-| escalation_precision / recall | 0.353 / 0.857 | 0.500 / 1.000 |
-| supporting passage retrieved | 0.000 | 0.000 |
-| supporting passage cited | 0.000 | 0.000 |
+| route_accuracy | 0.440 | 0.571 |
+| regulator_accuracy | 0.240 | 0.143 |
+| entity_accuracy | 0.240 | 0.286 |
+| escalation_precision / recall | 0.421 / 0.800 | 0.600 / 1.000 |
+| supporting passage retrieved | 0.133 | 0.250 |
+| supporting passage cited | 0.133 | 0.250 |
+| intake rejection recall | 0.400 | 0.500 |
+| intake false rejections | 0 | 0 |
 
-Reading: 17 of 22 runs escalated (11 `out_of_corpus`, 6 `unverified`), mostly because the stub's
+Reading: 19 of 25 runs escalated (11 `out_of_corpus`, 8 `unverified`), mostly because the stub's
 keyword classifier and draft step misroute (tracked in Mitesh's M4). The 1.0 groundedness covers
-only 5 answers whose single generic sentence the embedding judge accepts — it is not a quality
-signal. The supporting-passage metrics show what the judge misses: **no run retrieved its pinned
-clause**. For §4.1 the agent's query ranks RBI clause 10 ("Grounds for non-maintainability") first
-and the deciding clause 9 seventh, so the agent's `k=5` never sees clause 9 and it cites clause 10.
+only 6 answers whose single generic sentence the embedding judge accepts — it is not a quality
+signal. The supporting-passage metrics show what the judge misses: only the two mutual-fund runs
+retrieved and cited their pinned passage. For §4.1 the agent's query ranks RBI clause 10 ("Grounds
+for non-maintainability") first and the deciding clause 9 seventh, so the agent's `k=5` never sees
+clause 9 and it cites clause 10. The gateway guardrail catches 2 of the 5 injections; the three
+paraphrases get past it (Jignas's J10), and one of them (a JSON field injection) is answered by the
+agent (Mitesh's M11).
 
 **Live-model results:** pending a reachable model (Mitesh's M2, Jignas's J3); `make eval-live`
 produces them.
 
 ### 5.2 Keyword baseline (reference only) — `eval/results/baseline.json`
 
-| Metric | All (22) | Held-out (6) |
+| Metric | All (25) | Held-out (7) |
 |---|---|---|
-| groundedness | 0.733 | 0.750 |
-| context_relevance | 0.907 | 1.000 |
-| faithfulness | 0.800 | 0.750 |
-| hallucination_rate | 0.267 | 0.250 |
-| route / regulator / entity accuracy | 1.000 | 1.000 |
-| escalation_precision / recall | 1.000 / 1.000 | 1.000 / 1.000 |
+| groundedness | 0.722 | 0.800 |
+| context_relevance | 0.900 | 0.920 |
+| faithfulness | 0.833 | 0.800 |
+| hallucination_rate | 0.278 | 0.200 |
+| route / regulator / entity accuracy | 0.880 | 0.857 |
+| escalation_precision / recall | 1.000 / 0.700 | 1.000 / 0.667 |
 | supporting passage retrieved | 0.333 | 0.250 |
+
+The baseline mirrors the label scheme, so it is right everywhere except the three paraphrased
+injections, which its keyword list does not recognise.
 
 ### 5.3 Superseded: the Day-30 baseline
 The Day-30 table (groundedness 0.911, context relevance 0.907, faithfulness 0.933, hallucination
 0.267) **is withdrawn**. It scored the keyword baseline, not the agent, and two of its three claims
 per answer were sentences copied from the retrieved passages, which are supported by construction.
-With claims restricted to the answer's own text, the same baseline scores groundedness 0.733 and
-faithfulness 0.800 (§5.2). Recorded in `notes_tahir.md` under "what didn't work".
+With claims restricted to the answer's own text, the same baseline scored groundedness 0.733 and
+faithfulness 0.800 on that 22-scenario set. Recorded in `notes_tahir.md` under "what didn't work".
 
 ## 6. Honesty notes (for the report)
 - Stub-mode agent numbers measure the pipeline with canned replies, not model quality.
 - The baseline's perfect label metrics are by construction; they are not an independent measurement.
 - Groundedness and faithfulness track each other closely (same embedding judge, nearby thresholds),
   and the judge accepts generic sentences — read them with the supporting-passage metrics.
-- **22 scenarios give wide confidence intervals** — treat deltas smaller than a few points as noise.
+- **25 scenarios give wide confidence intervals** — treat deltas smaller than a few points as noise.
 - TruLens: `python -m eval.trulens_eval` wires a custom embedding feedback **Provider** + `Feedback`
   objects + a persisted `TruSession`; the claim-level metrics in `metrics.py` remain primary.
 
@@ -142,7 +161,7 @@ metric were committed before any result exists, and git history shows the order.
 | `l2-reflect-prompt` | L2 | reflect prompt v1 vs v2 (modifier and exclusion hunt) | route accuracy |
 | `l3-cite-by-evidence-number` | L3 | draft prompt v1 (copy chunk ids) vs v2 (cite numbered evidence) | supporting passage cited |
 
-`python -m eval.experiment run <name> --llm gateway` evaluates both configurations on the same 22
+`python -m eval.experiment run <name> --llm gateway` evaluates both configurations on the same 25
 scenarios and model, each in a fresh process with its environment overrides, and writes
 `eval/results/exp-<name>.json` with all four RAG metrics, the label metrics, supporting-passage hits,
 LLM call counts and a verdict on the primary metric (deltas of one or two scenarios are flagged as
@@ -153,8 +172,8 @@ stub mode unless `--allow-stub`) and Mitesh's prompt-version switch (M13; L3 als
 A stub-mode plumbing run gave identical results and the harness warned that the override had no
 effect, as expected before M13.
 
-**Budget:** one configuration is 22 scenarios × roughly 4–11 LLM calls, so one experiment is about
-180–480 calls. Check the hosted free tier's daily quota first; if it does not fit, run against an
+**Budget:** one configuration is 25 scenarios × roughly 4–11 LLM calls, so one experiment is about
+200–550 calls. Check the hosted free tier's daily quota first; if it does not fit, run against an
 Ollama-backed gateway and say so in the report.
 
 ### 7.3 Retrieval cache effect (D7) (`python -m eval.cache_effect`)

@@ -54,36 +54,40 @@ needs. Hybrid showed no recall gain → off by default, available via `mode`.
 
 ## C. Evaluation (L3)
 
-- **22 synthetic scenarios** (`eval/scenarios.yaml`), full category coverage, **6 held out** from tuning;
-  15 pin a supporting passage (doc + clause + exact quote), all of which resolve in the index.
+- **25 synthetic scenarios** (`eval/scenarios.yaml`), full category coverage, **7 held out** from tuning;
+  15 pin a supporting passage (doc + clause + exact quote), all of which resolve in the index; the 5
+  prompt-injection scenarios are labelled for rejection at intake.
 - **System under test:** the shipped agent (`eval/agent_sut.py` runs the worker pipeline with the real
   retrieval app). The keyword baseline (`eval/sut.py`) is kept as a reference only.
 - **Judge:** deterministic embedding (NLI-substitute) judge; thresholds support 0.45, relevance 0.32,
   infer 0.40. No LLM judge is used.
 - **Metrics (exact computations in `evaluation.md`):** groundedness, context relevance, faithfulness,
   hallucination rate (claim-level, claims = the answer's own sentences); route/regulator/entity accuracy
-  and escalation precision/recall; supporting passage retrieved / cited (label-based, no judge).
+  and escalation precision/recall; supporting passage retrieved / cited and intake rejection (label-based,
+  no judge).
 
 **The agent, stub mode (`make eval`, 2026-11-03):**
 
-| metric | all (22) | held-out (6) |
+| metric | all (25) | held-out (7) |
 |---|---|---|
-| answered | 5 | 2 |
+| answered | 6 | 2 |
 | groundedness / faithfulness | 1.000 / 1.000 | 1.000 / 1.000 |
-| context_relevance | 0.360 | 0.400 |
+| context_relevance | 0.400 | 0.400 |
 | hallucination_rate | 0.000 | 0.000 |
-| route / regulator / entity acc | 0.409 / 0.273 / 0.273 | 0.500 / 0.167 / 0.333 |
-| escalation precision / recall | 0.353 / 0.857 | 0.500 / 1.000 |
-| supporting passage retrieved / cited | 0.000 / 0.000 | 0.000 / 0.000 |
+| route / regulator / entity acc | 0.440 / 0.240 / 0.240 | 0.571 / 0.143 / 0.286 |
+| escalation precision / recall | 0.421 / 0.800 | 0.600 / 1.000 |
+| supporting passage retrieved / cited | 0.133 / 0.133 | 0.250 / 0.250 |
+| intake rejection recall / false rejections | 0.400 / 0 | 0.500 / 0 |
 
 Stub replies are canned, so these numbers describe the pipeline, not model quality. The judge scores the
-5 answers' single generic sentence as grounded; the label-based metrics show that no run retrieved its
-pinned clause (for §4.1, clause 10 "non-maintainability" ranks first for the agent's query and the
-deciding clause 9 seventh, below the agent's `k=5`). Live-model results follow once a model is reachable.
+6 answers' single generic sentence as grounded; the label-based metrics show that only the two mutual-fund
+runs retrieved and cited their pinned passage (for §4.1, clause 10 "non-maintainability" ranks first for
+the agent's query and the deciding clause 9 seventh, below the agent's `k=5`). The gateway guardrail
+rejects 2 of the 5 injections. Live-model results follow once a model is reachable.
 
-**Keyword baseline (reference only, `make eval-baseline`):** groundedness 0.733, context relevance 0.907,
-faithfulness 0.800, hallucination 0.267, supporting passage retrieved 0.333; label metrics 1.0 by
-construction.
+**Keyword baseline (reference only, `make eval-baseline`):** groundedness 0.722, context relevance 0.900,
+faithfulness 0.833, hallucination 0.278, supporting passage retrieved 0.333; label metrics 0.880 (it mirrors
+the label scheme but misses the three paraphrased injections).
 
 - **Deliberate change (L3) and prompt comparison (L2):** the earlier framework-filter and dense-vs-hybrid
   comparisons ran on the keyword baseline, so they are withdrawn. Two agent experiments are pre-registered
@@ -113,9 +117,10 @@ construction.
 - **The live-scoring demo used synthetic feedback** (an up-rate of 0.727 came from a fixed pattern, not
   users); those numbers are withdrawn.
 - **No free LLM judge was wired** (no API key); the embedding/NLI judge stands in. Groundedness and
-  faithfulness are consequently highly correlated. 22 scenarios give wide confidence intervals.
-- **The mutual-fund servicing supporting passage is weak** — the MF Regulations don't expose a clean
-  "redemption/NAV grievance" clause to naive retrieval; flagged for a re-pick.
+  faithfulness are consequently highly correlated. 25 scenarios give wide confidence intervals.
+- **The mutual-fund supporting passage was a bad label** — it pinned an amendment footnote about an
+  omitted provision. Re-pinned to Regulation 60A (AMC must redress grievances within 21 days), which the
+  segmenter had folded into the chunk indexed as clause `60-2`.
 - **Segmentation is a regex heuristic**, not a legal parser — dense index pages produce some noisy clause
   titles; documented, not hidden.
 - **The retrieval Docker image was not built in-repo** (Docker daemon offline, limited disk) — Dockerfiles

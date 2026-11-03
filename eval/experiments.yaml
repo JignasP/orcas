@@ -2,11 +2,11 @@
 #
 # Each experiment states its change, hypothesis and primary metric BEFORE it is run; git history
 # is the evidence of the order (as with docs/slo.md). `python -m eval.experiment run <name>` runs
-# both configurations on the same 22 scenarios with the same model and writes
+# both configurations on the same 25 scenarios with the same model and writes
 # eval/results/exp-<name>.json. Do not edit a hypothesis after results exist; add a new experiment.
 #
-# Budget: one configuration is 22 scenarios x roughly 4-11 LLM calls, so one experiment is about
-# 180-480 calls. Check the hosted free tier's daily quota first; if it does not fit, point
+# Budget: one configuration is 25 scenarios x roughly 4-11 LLM calls, so one experiment is about
+# 200-550 calls. Check the hosted free tier's daily quota first; if it does not fit, point
 # LLM_GATEWAY_URL at an Ollama-backed gateway and say so in the report.
 
 experiments:

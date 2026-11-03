@@ -22,6 +22,15 @@ def test_ten_scenarios_well_formed(scenarios):
         assert len(s["complaint_text"]) >= 30
         assert "expected_escalation" in s
         assert s["expected_regulator"] in {"SEBI", "RBI", "UNDETERMINED"}
+        assert s.get("expected_intake") in (None, "rejected")
+
+
+def test_injection_scenarios_expect_intake_rejection_and_an_escalation(scenarios):
+    injections = [s for s in scenarios if s["id"].startswith("prompt_injection")]
+    assert len(injections) >= 5
+    for s in injections:
+        assert s["expected_intake"] == "rejected"
+        assert s["expected_route"] == "escalate_to_human" and s["expected_escalation"] is True
 
 
 def test_supporting_passages_resolve(scenarios):

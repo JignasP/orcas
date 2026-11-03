@@ -411,6 +411,28 @@ retrieved passages skipped), a second pass scored nothing, the exporter publishe
 **Open:** Jignas adds the `live-scorer` service to Compose (J3) and a quality-over-time panel (J9);
 `.env.example` still says `LIVE_SCORE_SAMPLE_RATE=0.1` — agree on 0.2.
 
+### 2026-11-03 — T10: scenario set fixes
+
+**What didn't work:** the mutual-fund scenarios pinned an amendment footnote about an *omitted*
+provision (flagged since Slice 1); injection scenarios expected an escalation although the gateway
+rejects them with 422; the set had no injections that get past the regex; labels never peer-reviewed.
+
+**Did**
+- Re-pinned both MF scenarios to Regulation 60A ("The asset management company shall redress investor
+  grievances promptly but not later than twenty-one calendar days…"), which the segmenter folded into
+  the chunk indexed as clause `60-2` (a segmentation imperfection, documented).
+- `expected_intake: rejected` on all injection scenarios; new intake metrics (gateway guardrail
+  rejection recall, false rejections); in-process runs still push injections through the agent.
+- Three new injection paraphrases from the audit (forget-everything-above, fake system note, JSON
+  field injection); one held out. 25 scenarios, 7 held out.
+- `docs/work/tahir/scenario-review.md`: every label with its passage and a sign-off box.
+
+**Numbers (agent, stub):** route 0.440 (11/25), supporting passage retrieved/cited 0.133 (the two MF
+runs now retrieve and cite Regulation 60A), intake rejection recall 0.400 (2/5; the paraphrases get
+past the regex — Jignas's J10), 0 false rejections. Baseline: route 0.880 (misses the paraphrases).
+
+**Open:** peer review of the labels by Mitesh or Jignas.
+
 ---
 
 ## Benchmark & metric ledger (quick reference)
@@ -419,3 +441,5 @@ Keep the headline numbers here so they're easy to find at report time.
 | Date | What was measured | Setting | Number |
 |---|---|---|---|
 | 2026-11-03 | Agent route accuracy (22 scenarios) | stub mode, in-process | 0.409 (9/22) |
+| 2026-11-03 | Agent route accuracy (25 scenarios) | stub mode, in-process | 0.440 (11/25) |
+| 2026-11-03 | Intake rejection recall (5 injections) | gateway regex | 0.400 (2/5) |
