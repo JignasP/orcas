@@ -95,6 +95,22 @@ Then tell me and I'll compute SHA-256 + text-layer, fill `MANIFEST.yaml`, and ti
 - **Weak label flagged:** `mf_redemption_delay` fixture landed on a registrar-appointment clause (`p101w2`); fine as a real passage for FakeRetrievalClient, but re-pick before using as an eval label in Slice 5.
 - Build artifacts (`data/`) git-ignored — rebuilt by ingest, never committed.
 
+### 2026-11-03 — post-audit: incremental ingest, stable index_version, throughput metrics (T8)
+
+**What didn't work:** every ingest re-embedded all chunks and stamped `index_version` with the build
+time, so each `compose up` invalidated the retrieval and whole-run caches even when nothing changed;
+throughput was written to `index_info.json` but not exposed as a metric; `--reindex-if-changed` did
+nothing; `--re-embed` dropped each document's title/version/checksum from `index_info.json`.
+
+**Did:** embed only unseen chunk ids, refresh metadata on unchanged ones (same id = same text and
+model, so the vector stays), delete stale ones; `index_version = <tag>.<strategy>.<count>.<hash of
+chunk ids>`; retrieval `/metrics` gains `orcas_ingest_{chunks_per_second,pages_per_second,
+elapsed_seconds,embedded_chunks}` and `orcas_index_document_chunks{doc_id,version,sha256}`; removed
+the no-op flag; re-embed keeps document details.
+
+**Numbers (copy of the full index):** two consecutive ingests each embedded 0 of 637 chunks in 4.1 s
+(was ~19 s with embedding) and kept `index_version = minilm-l6-v2.clause.637.dd539860ac65`.
+
 ## Slice 2 — Evaluation 1 package + retrieval containerized (Days 9–13)
 
 ### 2026-10-13 — Eval-1 package + containerization

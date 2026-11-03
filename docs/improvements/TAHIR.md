@@ -208,17 +208,17 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 **Evidence:** [ingest/cli.py:56](../../services/ingest/cli.py#L56), [:43-51](../../services/ingest/cli.py#L43-L51), [:224](../../services/ingest/cli.py#L224); [retrieval/metrics.py](../../services/retrieval/metrics.py)
 
 **What to do**
-- [ ] Expose these from the retrieval `/metrics`, read from `index_info`:
+- [x] Expose these from the retrieval `/metrics`, read from `index_info`:
   - `orcas_ingest_chunks_per_second`
   - `orcas_ingest_pages_per_second`
   - `orcas_ingest_elapsed_seconds`
-  - `orcas_index_document_info{doc_id,version,sha256}`
-- [ ] Compute `index_version` as a hash of the sorted chunk IDs, model tag and strategy. Keep `built_at` as a separate field.
-- [ ] Embed only chunk IDs that aren't already in the collection, and report the added, stale and unchanged counts.
-- [ ] Remove `--reindex-if-changed`, or implement it.
+  - `orcas_index_document_info{doc_id,version,sha256}` *(shipped as `orcas_index_document_chunks`, value = the document's chunk count)*
+- [x] Compute `index_version` as a hash of the sorted chunk IDs, model tag and strategy. Keep `built_at` as a separate field.
+- [x] Embed only chunk IDs that aren't already in the collection, and report the added, stale and unchanged counts.
+- [x] Remove `--reindex-if-changed`, or implement it.
 
 **Done when**
-- [ ] Two consecutive `compose up` runs keep the same `index_version`, and the second ingest embeds 0 chunks.
+- [x] Two consecutive `compose up` runs keep the same `index_version`, and the second ingest embeds 0 chunks. *(Verified with two full ingests on a copy of the index; recheck under Compose in J1.)*
 
 ### T9 · `make test` from a fresh clone; your tests in CI
 **Audit:** contradiction 15

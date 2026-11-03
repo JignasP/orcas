@@ -1,6 +1,8 @@
 """orcas-ingest CLI: parse -> segment/chunk -> MiniLM embed -> upsert to Chroma.
 
-Idempotent (content-hash ids). Two chunking strategies:
+Idempotent and incremental: chunk ids are content hashes, so a re-run embeds only chunks it has not
+seen, refreshes metadata on the rest, and removes stale ones; index_version is a hash of the chunk ids,
+so it only changes when the index content does. Two chunking strategies:
   --strategy clause  (default)  structure-aware clause-aligned segmentation + scope cards
   --strategy fixed              fixed-size word windows (the v0 baseline, kept for the A/B)
 
@@ -17,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 import time
 from collections import defaultdict
@@ -25,14 +28,15 @@ from typing import Dict, List
 
 from services.corpus_common import store
 from services.corpus_common.constants import (
+    DEFAULT_COLLECTION,
     DISTANCE_METRIC,
     MODEL_NAME,
     MODEL_TAG,
-    DEFAULT_COLLECTION,
 )
 from services.corpus_common.embedding import embed_texts
 from services.corpus_common.ids import chunk_id
 from services.corpus_common.store import ChunkRecord
+
 from .chunk import chunk_pages
 from .manifest import ManifestDoc, indexable, load_manifest
 from .metadata import build_scope_cards
@@ -51,9 +55,24 @@ def _upsert_batched(col, records: List[ChunkRecord], batch: int = 128) -> None:
         )
 
 
-def _write_index_info(col, args, model_tag, per_doc, elapsed, total_pages, total_chunks, strategy):
+def _update_metadata_batched(col, records: List[ChunkRecord], batch: int = 128) -> None:
+    # Same id means same text and model tag, so the stored vector is still right: refresh metadata only.
+    for i in range(0, len(records), batch):
+        chunk = records[i : i + batch]
+        col.update(ids=[r.chunk_id for r in chunk], metadatas=[r.to_metadata() for r in chunk])
+
+
+def content_version(col, model_tag: str, strategy: str) -> str:
+    """Changes only when the set of chunks (text, clause, model tag) changes, not on every run."""
+    ids = sorted(col.get(include=[])["ids"])
+    digest = hashlib.sha256("\n".join(ids).encode()).hexdigest()[:12]
+    return f"{model_tag}.{strategy}.{len(ids)}.{digest}"
+
+
+def _write_index_info(col, args, model_tag, per_doc, elapsed, total_pages, total_chunks, strategy,
+                      embedded):
     built_at = datetime.now(timezone.utc)
-    index_version = f"{model_tag}.{strategy}.{built_at.strftime('%Y%m%dT%H%M%SZ')}.{col.count()}"
+    index_version = content_version(col, model_tag, strategy)
     info = {
         "index_version": index_version,
         "built_at": built_at.isoformat(),
@@ -68,6 +87,7 @@ def _write_index_info(col, args, model_tag, per_doc, elapsed, total_pages, total
             "chunks_per_s": round(total_chunks / max(elapsed, 1e-6), 2),
             "pages_per_s": round(total_pages / max(elapsed, 1e-6), 2),
             "elapsed_s": round(elapsed, 2),
+            "embedded": embedded,
         },
         "documents": per_doc,
     }
@@ -76,13 +96,17 @@ def _write_index_info(col, args, model_tag, per_doc, elapsed, total_pages, total
 
 
 def _sync_doc(col, doc_id: str, recs: List[ChunkRecord]):
-    desired = {r.chunk_id for r in recs}
+    """Embed only new chunks, refresh metadata on unchanged ones, delete stale ones."""
+    desired = {r.chunk_id: r for r in recs}
     existing = set(col.get(where={"doc_id": doc_id}, include=[])["ids"])
-    stale = list(existing - desired)
+    stale = list(existing - desired.keys())
     if stale:
         col.delete(ids=stale)
-    _upsert_batched(col, recs)
-    return len(desired - existing), len(stale)
+    new = [r for cid, r in desired.items() if cid not in existing]
+    kept = [r for cid, r in desired.items() if cid in existing]
+    _upsert_batched(col, new)
+    _update_metadata_batched(col, kept)
+    return len(new), len(stale), len(kept)
 
 
 def run(args: argparse.Namespace) -> int:
@@ -135,11 +159,12 @@ def run(args: argparse.Namespace) -> int:
     for r in all_records:
         by_doc[r.doc_id].append(r)
 
-    total_added = total_stale = 0
+    total_added = total_stale = total_kept = 0
     for doc_id, recs in by_doc.items():
-        added, stale = _sync_doc(col, doc_id, recs)
+        added, stale, kept = _sync_doc(col, doc_id, recs)
         total_added += added
         total_stale += stale
+        total_kept += kept
 
     total_pages = sum(v["pages"] for v in parse_info.values())
     total_chunks = len(all_records)
@@ -160,11 +185,13 @@ def run(args: argparse.Namespace) -> int:
         })
 
     elapsed = time.time() - started
-    iv = _write_index_info(col, args, model_tag, per_doc, elapsed, total_pages, total_chunks, args.strategy)
+    iv = _write_index_info(col, args, model_tag, per_doc, elapsed, total_pages, total_chunks,
+                           args.strategy, embedded=total_added)
     changed = total_added > 0 or total_stale > 0
     print(
         f"ingest: done in {elapsed:.1f}s — {total_chunks} chunks ({len(scope_cards)} scope cards) "
-        f"across {len(docs)} docs; collection holds {col.count()}. "
+        f"across {len(docs)} docs; embedded {total_added} new, {total_kept} unchanged, "
+        f"{total_stale} stale removed; collection holds {col.count()}. "
         + ("CHANGED" if changed else "no changes (idempotent)")
     )
     print(f"ingest: index_version={iv}")
@@ -199,11 +226,16 @@ def _run_reembed(args, col, model_tag) -> int:
     if stale:
         col.delete(ids=stale)
     elapsed = time.time() - started
-    strategy = (store.read_index_info() or {}).get("chunking_strategy", "clause")
+    previous = store.read_index_info(args.index_info) or {}
+    strategy = previous.get("chunking_strategy", "clause")
+    known = {d.get("doc_id"): d for d in previous.get("documents", [])}
     per_doc = []
     for doc_id in sorted({r.doc_id for r in new_records}):
-        per_doc.append({"doc_id": doc_id, "chunk_count": len(col.get(where={"doc_id": doc_id}, include=[])["ids"])})
-    iv = _write_index_info(col, args, model_tag, per_doc, elapsed, 0, len(new_records), strategy)
+        # keep the title / version / checksum the last full ingest recorded for this document
+        per_doc.append({**known.get(doc_id, {}), "doc_id": doc_id,
+                        "chunk_count": len(col.get(where={"doc_id": doc_id}, include=[])["ids"])})
+    iv = _write_index_info(col, args, model_tag, per_doc, elapsed, 0, len(new_records), strategy,
+                           embedded=len(new_records))
     print(
         f"ingest: re-embedded {len(new_records)} chunks in {elapsed:.1f}s; "
         f"{len(stale)} old-tag chunks removed; collection holds {col.count()}."
@@ -221,8 +253,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--strategy", choices=["clause", "fixed"], default="clause")
     p.add_argument("--chunk-words", type=int, default=180, help="fixed strategy window size")
     p.add_argument("--overlap", type=int, default=40, help="fixed strategy overlap")
-    p.add_argument("--reindex-if-changed", action="store_true",
-                   help="idempotent full pass (upsert-by-id is already a no-op when unchanged)")
     p.add_argument("--re-embed", action="store_true",
                    help="re-embed stored chunks under --model-tag, by id, without re-parsing")
     p.add_argument("--model-tag", default=None)

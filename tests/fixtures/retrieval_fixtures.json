@@ -1,7 +1,7 @@
 {
   "schema": "orcas.retrieval_fixtures.v0",
   "generated_note": "Real passages retrieved from the SHA-pinned corpus (corpus/MANIFEST.yaml). quote spans are exact substrings of the named chunk, so resolve_citation/quote_span checks pass. Delivered to Mitesh for FakeRetrievalClient (TAHIR.md handoff, Day 8).",
-  "index_version": "minilm-l6-v2.clause.20261013T074855Z.637",
+  "index_version": "minilm-l6-v2.clause.637.dd539860ac65",
   "model_tag": "minilm-l6-v2",
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "fixtures": [
