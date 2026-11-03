@@ -9,17 +9,13 @@ Run:  python -m eval.benchmark_chunking
 """
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 
 from services.corpus_common import store
-from services.corpus_common.constants import repo_root
 from services.ingest import cli
 from services.retrieval.models import SearchFilters, SearchMode, SearchRequest
 from services.retrieval.service import Retriever
-
-FIXTURES = repo_root() / "tests" / "fixtures" / "retrieval_fixtures.json"
 
 
 def _build(strategy: str, chroma_dir: Path, info_path: Path):
@@ -77,7 +73,6 @@ def mean_hit_score(retriever: Retriever, k: int = 10) -> float:
 
 
 def main() -> int:
-    fixtures = json.loads(FIXTURES.read_text())["fixtures"]
     tmp = Path(tempfile.mkdtemp(prefix="orcas_bench_"))
     rows = []
     for strategy in ("fixed", "clause"):

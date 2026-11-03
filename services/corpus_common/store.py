@@ -6,10 +6,17 @@ on read. All of that round-tripping lives here so both services agree.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-# Disable Chroma's anonymized telemetry BEFORE chromadb is imported anywhere.
+from .constants import DEFAULT_COLLECTION, DISTANCE_METRIC, chroma_dir, index_info_path
+
+# Disable Chroma's anonymized telemetry BEFORE chromadb is imported anywhere (chromadb itself is
+# only imported inside get_client below).
 # chromadb 0.5.x ships a posthog incompatibility that logs noisy
 # "capture() takes 1 positional argument but 3 were given" ERROR lines. The env
 # var/Settings flag does not stop the logging, so we also mute the logger.
@@ -17,12 +24,6 @@ os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
 logging.getLogger("chromadb.telemetry.product.posthog").setLevel(logging.CRITICAL)
 
-import json
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from .constants import DEFAULT_COLLECTION, DISTANCE_METRIC, chroma_dir, index_info_path
 
 # Metadata keys that hold lists and are therefore JSON-encoded in Chroma.
 _LIST_KEYS = ("heading_path", "entity_types", "product_types")
