@@ -392,6 +392,16 @@ past the regex — Jignas's J10), 0 false rejections. Baseline: route 0.880 (mis
 - ARCHITECTURE §5: hybrid retrieval decided (off by default) with its numbers; report section A notes
   the citation references; the Eval-1 addendum explains the content-based `index_version` (T8).
 
+### 2026-11-03 — T12 (rest): TruLens on agent outputs; D4 decision
+
+- `eval/trulens_eval.py` scored the keyword baseline's records; it now scores the agent's runs
+  (`--llm stub|gateway`), taking claims and contexts the same way as `make eval`. Stub mode: 6 answered
+  of 25; TruLens feedback groundedness 0.414, context relevance 0.257 (raw cosine, not thresholded, so
+  not comparable with the claim-level table).
+- Decided **not** to move the embedding model name into a Docker build argument this week: it would
+  make image builds depend on `.env` and a coordinated Compose change near the clean-clone gate.
+  Recorded as a known limitation in report section D.
+
 ---
 
 ## Benchmark & metric ledger (quick reference)

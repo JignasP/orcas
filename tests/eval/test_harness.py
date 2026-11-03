@@ -33,3 +33,9 @@ def test_trulens_available_and_provider():
     assert trulens_eval.available() is True
     assert trulens_eval.OrcasEmbeddingProvider is not None
     assert 0.0 <= trulens_eval.ground_score("the bank deposit interest", "bank deposit interest") <= 1.0
+
+
+def test_trulens_feedback_runs_on_agent_outputs(built, capsys):
+    pytest.importorskip("langgraph")
+    assert trulens_eval.run([]) == 0
+    assert "system    : agent[llm=stub" in capsys.readouterr().out

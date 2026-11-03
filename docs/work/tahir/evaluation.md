@@ -142,8 +142,11 @@ faithfulness 0.800 on that 22-scenario set. Recorded in `notes_tahir.md` under "
 - Groundedness and faithfulness track each other closely (same embedding judge, nearby thresholds),
   and the judge accepts generic sentences — read them with the supporting-passage metrics.
 - **25 scenarios give wide confidence intervals** — treat deltas smaller than a few points as noise.
-- TruLens: `python -m eval.trulens_eval` wires a custom embedding feedback **Provider** + `Feedback`
-  objects + a persisted `TruSession`; the claim-level metrics in `metrics.py` remain primary.
+- TruLens: `python -m eval.trulens_eval` scores the same agent runs through TruLens primitives (a
+  custom embedding feedback **Provider**, `Feedback` objects, a persisted `TruSession`). Its feedback
+  values are raw cosine similarities (stub mode: groundedness 0.414, context relevance 0.257 over the 6
+  answered runs), not the thresholded claim decisions, so they are not comparable with the table above.
+  The claim-level metrics in `metrics.py` remain primary.
 
 ## 7. Experiments, cache, live scoring (Slice 6)
 
