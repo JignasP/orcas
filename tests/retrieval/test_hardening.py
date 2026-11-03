@@ -57,6 +57,23 @@ def test_with_timeout_returns_and_raises():
     assert ei.value.status_code == 504
 
 
+def test_timed_out_search_that_never_started_is_cancelled(monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from services.retrieval import app as retrieval_app
+
+    monkeypatch.setattr(retrieval_app, "_EXECUTOR", ThreadPoolExecutor(max_workers=1))
+    release, ran = threading.Event(), []
+    retrieval_app._EXECUTOR.submit(release.wait)  # occupy the only worker
+    with pytest.raises(HTTPException) as ei:
+        with_timeout(lambda: ran.append(True), timeout=0.05)  # queued behind it, then times out
+    assert ei.value.status_code == 504
+    release.set()
+    retrieval_app._EXECUTOR.shutdown(wait=True)
+    assert ran == []  # cancelled while queued: it never ran for a caller that had given up
+
+
 def test_empty_index_search_is_graceful(tmp_path):
     client_db = store.get_client(str(tmp_path / "chroma"))
     empty = store.get_collection(client_db, name="empty_corpus")

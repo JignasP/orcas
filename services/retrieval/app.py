@@ -68,17 +68,23 @@ async def correlate_request(request: Request, call_next):
         correlation_id.reset(token)
 _retriever = Retriever()
 
-# Every request is bounded by a timeout so a slow query returns 504 rather than hanging.
+# Every request is bounded by a timeout so a slow query returns 504 rather than hanging. The pool
+# caps concurrent searches at RETRIEVAL_WORKERS; requests beyond that wait for a free worker.
 RETRIEVAL_TIMEOUT_S = float(os.getenv("RETRIEVAL_TIMEOUT_S", "10"))
 _EXECUTOR = ThreadPoolExecutor(max_workers=int(os.getenv("RETRIEVAL_WORKERS", "4")))
 
 
 def with_timeout(fn, *args, timeout: float = None):
-    """Run fn with a wall-clock timeout; raise HTTP 504 if it overruns."""
+    """Run fn with a wall-clock timeout; raise HTTP 504 if it overruns.
+
+    A search that never got a worker is cancelled, so it doesn't run later for a caller that has
+    already given up. One that started cannot be interrupted and finishes in the background.
+    """
     fut = _EXECUTOR.submit(fn, *args)
     try:
         return fut.result(timeout=timeout if timeout is not None else RETRIEVAL_TIMEOUT_S)
     except FuturesTimeout:
+        fut.cancel()
         raise HTTPException(status_code=504, detail="retrieval timed out")
 
 
