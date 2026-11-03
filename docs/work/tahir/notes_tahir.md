@@ -260,6 +260,30 @@ escalations. These reflect the stub's keyword replies (Mitesh's M4), not model q
 
 **Open:** live-model results wait on a reachable model (Mitesh's M2 + Jignas's J3).
 
+### 2026-11-03 — T2: make the metrics mean something
+
+**What didn't work:** the baseline's claims were its routing sentence plus two sentences copied from
+the retrieved passages; copied sentences are supported by construction, so groundedness 0.911 was
+inflated. The scenarios' pinned supporting passages were never used. The live-scoring demo's
+feedback up-rate (0.727) came from a fixed pattern (`i % 4`), not users.
+
+**Did**
+- Claims come only from the answer's own text (baseline: its routing conclusion; agent: basis).
+- New label-based metrics over the 15 scenarios that pin a passage: supporting passage retrieved /
+  cited, using the pinned clause's chunk ids from the index (all 15 resolve, quotes verified).
+- Judge thresholds are written into every results file and printed with every table.
+- `evaluation.md` and `report-sections.md` rewritten with the agent numbers; Day-30 baseline and the
+  synthetic live-scoring numbers withdrawn; removed the claim that an LLM judge is used for L2.
+- Removed the stale `eval/results/latest.json` (old-claims baseline; still in git history).
+
+**Numbers**
+- Baseline with honest claims: groundedness 0.733 (was 0.911), faithfulness 0.800 (was 0.933),
+  supporting passage retrieved 0.333.
+- Agent, stub mode: supporting passage retrieved 0.000, cited 0.000. For §4.1 the agent's query
+  ranks RBI clause 10 ("Grounds for non-maintainability") 1st and the deciding clause 9 7th; the
+  agent searches with `k=5`, so it never sees clause 9 and cites clause 10. Retrieval-side follow-up:
+  the non-maintainability clause outranks the grounds clause for "deficiency in service" queries.
+
 ---
 
 ## Benchmark & metric ledger (quick reference)

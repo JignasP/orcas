@@ -31,13 +31,31 @@ RESULTS = repo_root() / "eval" / "results"
 
 _ORDER = ["n_scenarios", "n_answered", "groundedness", "context_relevance", "faithfulness",
           "hallucination_rate", "route_accuracy", "regulator_accuracy", "entity_accuracy",
-          "escalation_precision", "escalation_recall"]
+          "escalation_precision", "escalation_recall", "n_with_supporting_passage",
+          "supporting_passage_retrieved", "supporting_passage_cited"]
 
 
 def _print_table(title: str, m: dict) -> None:
-    print(f"\n=== {title} (judge={m['judge']}) ===")
+    print(f"\n=== {title} (judge={m['judge']} {m.get('judge_thresholds', {})}) ===")
     for key in _ORDER:
-        print(f"  {key:<22} {m.get(key)}")
+        print(f"  {key:<28} {m.get(key)}")
+
+
+def supporting_chunk_ids(scenarios: List[dict]) -> dict:
+    """Map scenario id -> chunk ids of its pinned supporting clause, read from the local index."""
+    from services.retrieval.service import Retriever
+
+    retriever, out = Retriever(use_cache=False), {}
+    for s in scenarios:
+        sp = s.get("supporting_passage")
+        if not sp:
+            continue
+        clause = retriever.get_clause(sp["doc_id"], str(sp["clause_id"]))
+        if clause is None:
+            print(f"WARNING: {s['id']}: supporting clause {sp['doc_id']}/{sp['clause_id']} "
+                  "is not in the index; its label needs re-pinning")
+        out[s["id"]] = clause.chunk_ids if clause else []
+    return out
 
 
 def _print_scenarios(results: List[EvalResult]) -> None:
@@ -63,11 +81,14 @@ def run(args) -> int:
     sut = build_sut(args)
     judge = EmbeddingJudge()
 
+    supporting = supporting_chunk_ids(scenarios)
     results: List[EvalResult] = []
     for i, scenario in enumerate(scenarios):
         if i and args.sleep:
             time.sleep(args.sleep)  # free-tier providers limit requests per minute
-        results.append(sut.run(scenario))
+        result = sut.run(scenario)
+        result.supporting_chunk_ids = supporting.get(scenario["id"], [])
+        results.append(result)
     overall = compute(results, judge)
     held = compute([r for r in results if r.held_out], judge)
 
@@ -107,6 +128,10 @@ def run(args) -> int:
              "entity_type": r.entity_type, "expected_entity_type": r.expected_entity_type,
              "escalated": r.escalated, "expected_escalation": r.expected_escalation,
              "held_out": r.held_out, "n_claims": len(r.claims), "n_contexts": len(r.contexts),
+             "supporting_retrieved": (bool(set(r.retrieved_chunk_ids) & set(r.supporting_chunk_ids))
+                                      if r.supporting_chunk_ids else None),
+             "supporting_cited": (bool(set(r.cited_chunk_ids) & set(r.supporting_chunk_ids))
+                                  if r.supporting_chunk_ids and r.cited_chunk_ids is not None else None),
              **{k: v for k, v in r.details.items() if k not in ("prompt_versions", "index_version")}}
             for r in results
         ],

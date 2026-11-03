@@ -41,19 +41,24 @@ def complaint_payload(scenario: dict) -> dict:
     }
 
 
-def contexts_from_events(events: List[dict]) -> List[str]:
-    """Passage texts the run retrieved, in order, de-duplicated by chunk_id."""
+def _retrieved(events: List[dict]) -> List[dict]:
+    """Passages the run retrieved, in order, de-duplicated by chunk_id."""
     seen, out = set(), []
     for event in events:
         if event.get("kind") != "tool_call":
             continue
         for p in (event.get("payload") or {}).get("passages") or []:
-            cid, text = p.get("chunk_id"), p.get("text")
-            if not text or cid in seen:
+            cid = p.get("chunk_id")
+            if cid in seen:
                 continue
             seen.add(cid)
-            out.append(text)
+            out.append(p)
     return out
+
+
+def contexts_from_events(events: List[dict]) -> List[str]:
+    """Passage texts the run retrieved, in order, de-duplicated by chunk_id."""
+    return [p["text"] for p in _retrieved(events) if p.get("text")]
 
 
 def claims_from_determination(det: dict) -> List[str]:
@@ -74,6 +79,8 @@ def to_result(scenario: dict, det: Optional[dict], events: List[dict],
         route=det.get("route", status), regulator=det.get("regulator", ""),
         entity_type=det.get("entity_type", ""), escalated=status == "escalated",
         contexts=contexts_from_events(events), claims=claims_from_determination(det),
+        retrieved_chunk_ids=[p["chunk_id"] for p in _retrieved(events) if p.get("chunk_id")],
+        cited_chunk_ids=[c["chunk_id"] for c in det.get("citations") or [] if c.get("chunk_id")],
         expected_route=scenario["expected_route"],
         expected_regulator=scenario["expected_regulator"],
         expected_entity_type=scenario["expected_entity_type"],
