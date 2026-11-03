@@ -14,9 +14,15 @@
 
   <main>
     <section class="card">
-      <div class="row">
-        <label for="gateway">Gateway base URL</label>
-        <input id="gateway" type="text" placeholder="(same origin)" />
+      <div class="grid">
+        <div class="row">
+          <label for="gateway">Gateway base URL</label>
+          <input id="gateway" type="text" placeholder="(same origin)" />
+        </div>
+        <div class="row">
+          <label for="poll_timeout">Wait for a result (seconds)</label>
+          <input id="poll_timeout" type="number" min="10" step="10" />
+        </div>
       </div>
 
       <div class="row">
@@ -24,7 +30,9 @@
         <select id="preset">
           <option value="">— choose a preset —</option>
           <option value="bank_fd">#10 §4.1 bank fixed deposit → RBI</option>
+          <option value="bank_fd_paraphrase">§4.1 paraphrase (FD via net banking) → RBI</option>
           <option value="mf">Mutual fund redemption delay → SEBI</option>
+          <option value="split">F7 broker and bank charges (two regulators) → escalate</option>
           <option value="out_of_corpus">#5 Insurance (out of corpus) → escalate</option>
         </select>
       </div>
