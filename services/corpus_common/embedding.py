@@ -21,6 +21,11 @@ def _model():
     return SentenceTransformer(MODEL_NAME)
 
 
+def model_loaded() -> bool:
+    """True once the model is in memory (loading it takes seconds on a cold start)."""
+    return _model.cache_info().currsize > 0
+
+
 def embed_texts(texts: List[str]) -> List[List[float]]:
     if not texts:
         return []

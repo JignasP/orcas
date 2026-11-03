@@ -1,12 +1,12 @@
-"""Retrieval hardening (Slice 7): /health liveness, /ready readiness, timeout, empty-index."""
+"""Retrieval hardening: /health liveness, /ready readiness (index + model), warm-up, timeout, empty-index."""
 import time
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from services.corpus_common import store
-from services.retrieval.app import app, with_timeout
+from services.corpus_common import embedding, store
+from services.retrieval.app import app, warm_up, with_timeout
 from services.retrieval.models import SearchRequest
 from services.retrieval.service import Retriever
 
@@ -23,11 +23,31 @@ def test_health_is_always_live(client):
 
 
 def test_ready_reflects_index(client):
+    warm_up()
     r = client.get("/ready")
     if store.get_collection().count() > 0:
         assert r.status_code == 200 and r.json()["status"] == "ok"
+        assert r.json()["model_loaded"] is True
     else:
         assert r.status_code == 503
+
+
+def test_not_ready_until_the_model_is_loaded(client, monkeypatch):
+    monkeypatch.setattr(embedding, "model_loaded", lambda: False)
+    r = client.get("/ready")
+    assert r.status_code == 503 and r.json()["model_loaded"] is False
+    live = client.get("/health")  # liveness stays up while the model loads
+    assert live.status_code == 200 and live.json()["model_loaded"] is False
+
+
+def test_startup_warms_the_embedding_model_in_the_background():
+    import threading
+
+    with TestClient(app):  # runs the lifespan
+        workers = [t for t in threading.enumerate() if t.name == "embedding-warmup"]
+        for t in workers:
+            t.join(timeout=120)
+    assert embedding.model_loaded()
 
 
 def test_with_timeout_returns_and_raises():

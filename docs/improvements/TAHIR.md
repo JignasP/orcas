@@ -263,6 +263,6 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 
 ### T12 · Small items
 - [ ] **(Strict D4.)** Pass the embedding model name as a build argument (`EMBED_MODEL`) in the ingest and retrieval Dockerfiles, instead of hard-coding it. Jignas then passes it from `.env`.
-- [ ] Retrieval `/health` always reports `model_loaded: true`; make it truthful.
+- [x] Retrieval `/health` always reports `model_loaded: true`; make it truthful. *(Done early because it was demo-critical: the model is warmed at startup and `/ready` waits for it; a cold first search could hit the 10 s timeout.)*
 - [ ] After a retrieval timeout the search thread keeps running. Cap concurrent searches.
 - [ ] TruLens: either feed the agent's outputs into the TruLens feedback functions, or keep stating that the native metrics are primary.
