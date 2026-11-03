@@ -12,6 +12,7 @@ from typing import List
 
 from services.corpus_common.ids import chunk_id
 from services.corpus_common.store import ChunkRecord
+
 from .parse import Page
 
 _WS = re.compile(r"\s+")

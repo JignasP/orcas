@@ -38,3 +38,9 @@ test:
 
 demo:
 	python scripts/demo/initial_demo.py
+
+# Everything the test suite needs (all services + eval + test tools); tests that need the
+# built index skip until `make ingest` has run
+.PHONY: install-dev
+install-dev:
+	python -m pip install -r requirements-dev.txt

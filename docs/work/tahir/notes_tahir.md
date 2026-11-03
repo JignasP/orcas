@@ -126,6 +126,18 @@ the no-op flag; re-embed keeps document details.
 
 **Handoff:** this satisfies the Day-12 "retrieval container with health + /metrics" handoff to Mitesh + Jignas (compose wiring is Jignas's).
 
+### 2026-11-03 — post-audit: `make test` from a fresh clone (T9)
+
+**What didn't work:** the root `requirements.txt` covered only retrieval/ingest/eval, so after
+`pip install -r requirements.txt` the agent and platform tests failed on import (`langgraph`,
+`celery`, `psycopg`, `redis`, `jsonschema`), and CI never ran `tests/retrieval` or `tests/eval`.
+
+**Did:** `requirements-dev.txt` (all service requirements + pytest + ruff), `make install-dev`;
+lint fixes in my directories (store.py import order, unused code in the chunking benchmark).
+**Checked from a fresh clone and a fresh venv:** install 1 m 50 s; `make test` before ingest 75
+passed / 20 skipped (index tests skip); `make ingest` 637 chunks; `make test` after 94 passed /
+1 skipped (Postgres), 0 failed.
+
 ## Slice 3 — Web client v0 (Days 11–14)
 
 ### 2026-10-13 — web client + fake gateway, end-to-end verified

@@ -1,8 +1,8 @@
 """End-to-end eval harness smoke + TruLens availability (needs the built index)."""
 import pytest
 
-from services.corpus_common import store
 from eval import run_eval, trulens_eval
+from services.corpus_common import store
 
 
 @pytest.fixture(scope="module")

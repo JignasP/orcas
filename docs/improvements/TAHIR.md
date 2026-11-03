@@ -226,9 +226,9 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 **Problem.** The root `requirements.txt` lacks `langgraph`, `celery`, `psycopg`, `redis` and `jsonschema`, so `make test` fails on import after `pip install -r requirements.txt`. CI never runs `tests/retrieval` or `tests/eval`.
 
 **What to do**
-- [ ] Add `requirements-dev.txt`, or extend the root file, with everything `make test` needs. Put the install line in the README (via Jignas).
-- [ ] Mark the tests that need the embedding model or index (for example `@pytest.mark.index`), so CI can run the rest; or cache the model in CI.
-- [ ] Send Jignas the exact CI command (J11).
+- [x] Add `requirements-dev.txt`, or extend the root file, with everything `make test` needs. Put the install line in the README (via Jignas). *(`make install-dev`; README line sent to Jignas in the PR.)*
+- [x] Mark the tests that need the embedding model or index (for example `@pytest.mark.index`), so CI can run the rest; or cache the model in CI. *(No markers needed: index tests already skip without an index. CI builds the index and caches the model.)*
+- [x] Send Jignas the exact CI command (J11). *(A CI job snippet is in the T9 PR.)*
 
 ### T10 · Scenario set fixes
 **Requirements:** L3
