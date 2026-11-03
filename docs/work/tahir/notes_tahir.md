@@ -308,6 +308,29 @@ and the "override had no effect" warning, as expected before Mitesh's M13. Not c
 
 **Open:** both runs need a live model and M13 (L3 also needs M3).
 
+### 2026-11-03 — T4: one §4.1 reference answer, plus a regression test
+
+**What didn't work:** three different "reference answers" existed — Eval-1 §2 (naive IDs
+`p1w1/p1w0/p6w0`, gone since Slice 4), the fixtures/scenarios (SEBI `2`, RBI `preamble` + `9`), and
+the running system, which cites RBI clause 10 "Grounds for non-maintainability".
+
+**Did**
+- Addendum to `evaluation-1-package.md`: current index_version, pinned passages (chunk ids +
+  exact quotes, all `quote_span_found=true`), updated reference determination, "must not cite"
+  clause 10, and the demo #10 narration with live commands.
+- Checked fixtures: all 9 resolve against the current index with their quotes; the §4.1 fixture
+  matches the pinned answer.
+- `tests/eval/test_reference_case.py`: pinned passages resolve (catches re-ingest drift); §4.1 is
+  referred to RBI (passes now); cites preamble/9 and not 10 (strict xfail until M3/M4).
+
+**Found while testing:** a cold run failed with a retrieval 504 — the first search loaded the
+embedding model inside the 10 s request timeout. The eval harness now warms the model first. The
+same risk exists in Compose (`/ready` doesn't load the model), fixed in the next PR.
+
+**Numbers:** for the complaint text, unfiltered search ranks SEBI clause 3 first (0.61); RBI-filtered,
+neither the preamble nor clause 9 is in the top 5. A query using scope vocabulary ranks clause 10
+first (0.72) and clause 9 second (0.656).
+
 ---
 
 ## Benchmark & metric ledger (quick reference)

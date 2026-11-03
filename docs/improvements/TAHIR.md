@@ -134,13 +134,13 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 - The selection bug is in the stub ([llm_stub/app.py:29-37](../../services/llm_stub/app.py#L29-L37)); Mitesh fixes it in M3/M4.
 
 **What to do**
-- [ ] Add an addendum to `evaluation-1-package.md` rather than rewriting history. It should give the current `index_version`, the clause IDs (SEBI `2`; RBI `preamble` + `9`), the current chunk IDs and the exact quotes.
-- [ ] Check that the fixtures match the current IDs.
-- [ ] Add a regression test: run §4.1 through the AgentSUT in stub mode, and assert route `refer_to_other_regulator`, regulator RBI, citations include the preamble or clause 9, and **never** clause 10.
-- [ ] Prepare the demo #10 narration: what the SEBI search returns, what the RBI search returns, and why the RBI passages decide the case.
+- [x] Add an addendum to `evaluation-1-package.md` rather than rewriting history. It should give the current `index_version`, the clause IDs (SEBI `2`; RBI `preamble` + `9`), the current chunk IDs and the exact quotes.
+- [x] Check that the fixtures match the current IDs.
+- [x] Add a regression test: run §4.1 through the AgentSUT in stub mode, and assert route `refer_to_other_regulator`, regulator RBI, citations include the preamble or clause 9, and **never** clause 10.
+- [x] Prepare the demo #10 narration: what the SEBI search returns, what the RBI search returns, and why the RBI passages decide the case.
 
 **Done when**
-- [ ] The test passes once M3/M4 are merged, and the same reference answer appears everywhere.
+- [ ] The test passes once M3/M4 are merged, and the same reference answer appears everywhere. *(Same answer in the addendum, fixtures and scenarios. The citation check is a strict xfail until M3/M4; delete the marker then.)*
 
 ### T5 · Web client fixes for the demo
 **Requirements:** A8, demo #2, #3, #5, #10 · **Audit:** A8
