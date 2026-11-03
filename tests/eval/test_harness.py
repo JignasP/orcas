@@ -13,7 +13,8 @@ def built():
 
 
 def test_run_eval_baseline(built, tmp_path):
-    args = run_eval.build_parser().parse_args(["--tag", "test", "--out", str(tmp_path / "r.json")])
+    args = run_eval.build_parser().parse_args(
+        ["--sut", "baseline", "--tag", "test", "--out", str(tmp_path / "r.json")])
     assert run_eval.run(args) == 0
     import json
     data = json.loads((tmp_path / "r.json").read_text())

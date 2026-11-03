@@ -235,6 +235,31 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 ## Slice 9 — Rehearsal (Days 44–50)
 _No entries yet._
 
+## Post-audit improvements (docs/improvements/TAHIR.md)
+
+### 2026-11-03 — T1: evaluate the real system (AgentSUT)
+
+**What didn't work (found in the integration audit):** `make eval` had only ever scored the
+keyword `BaselineSUT`, never the shipped agent, so every published metric described a system
+that does not ship. "Mitesh's agent drops in later" never happened.
+
+**Did**
+- `eval/agent_sut.py`: runs `run_complaint_pipeline` with the real retrieval app (via
+  `HttpRetrievalClient`). Modes: in-process stub replies (default), live model via
+  `LLM_GATEWAY_URL`, or a running stack through the public API (`--via-gateway`).
+- Contexts = passages the run retrieved (its `tool_call` events); claims = sentences of a
+  completed determination's basis; escalations assert nothing.
+- `run_eval.py`: `--sut agent|baseline` (agent is default), `--llm`, `--via-gateway`, `--sleep`;
+  records models, prompt versions and index version; per-scenario table for Mitesh.
+- `make eval` = agent (stub), `make eval-live`, `make eval-baseline`.
+
+**Numbers — agent, stub mode (`eval/results/agent-stub.json`)**
+route 0.409 (9/22), regulator 0.273, entity 0.273, escalation P/R 0.353/0.857; 5 of 22 answered
+(groundedness 1.0, context relevance 0.36 over those 5). 11 `out_of_corpus` and 6 `unverified`
+escalations. These reflect the stub's keyword replies (Mitesh's M4), not model quality.
+
+**Open:** live-model results wait on a reachable model (Mitesh's M2 + Jignas's J3).
+
 ---
 
 ## Benchmark & metric ledger (quick reference)
@@ -242,4 +267,4 @@ Keep the headline numbers here so they're easy to find at report time.
 
 | Date | What was measured | Setting | Number |
 |---|---|---|---|
-| | | | |
+| 2026-11-03 | Agent route accuracy (22 scenarios) | stub mode, in-process | 0.409 (9/22) |
