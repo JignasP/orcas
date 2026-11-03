@@ -1,6 +1,6 @@
-# services/ingest — `orcas-ingest` (v0)
+# services/ingest — `orcas-ingest`
 
-Idempotent corpus pipeline: **parse → naive chunk → MiniLM embed → upsert to Chroma** (D2, L1).
+Idempotent corpus pipeline: **parse → clause-aligned chunk → MiniLM embed → upsert to Chroma**.
 
 ## Run
 ```bash
@@ -16,7 +16,7 @@ python -m services.ingest --re-embed --model-tag minilm-l6-v2
 - **Chunking strategies** (`--strategy`):
   - `clause` (default): structure-aware, clause-aligned — real `clause_id` + `heading_path`,
     preamble captured, long clauses split into `#k` sub-chunks, plus one **scope card** per framework.
-    Chunks tagged with inferred `entity_types[]` / `product_types[]`. See `docs/work/tahir/chunking.md`.
+    Chunks tagged with inferred `entity_types[]` / `product_types[]`. See [retrieval strategy](../../docs/retrieval_strategy.md).
   - `fixed`: fixed-size word windows (`--chunk-words`/`--overlap`), positional `clause_id` — the A/B baseline.
 - **Re-embedding (no re-parse):** `--re-embed --model-tag X` re-embeds the stored chunk texts under
   tag `X` by id. Same tag → vectors replaced in place (ids/count stable); a new tag → new id set,

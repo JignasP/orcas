@@ -17,3 +17,7 @@ data/
 
 # Env / secrets
 .env
+
+# Local planning and delivery notes
+docs/work/
+*_CHECKLIST.md

@@ -2,7 +2,7 @@
 
 Course: UE24AM342AA5 ML System Design & AgentOps · Mini Project 12 · Team: Mitesh, Tahir, Jignas · Budget: 50 days
 
-Related: [Architecture](ARCHITECTURE.md) · [Mitesh](work/MITESH.md) · [Tahir](work/TAHIR.md) · [Jignas](work/JIGNAS.md)
+Related: [Architecture](ARCHITECTURE.md) · [Data contract](data_contract.md) · [SLO](slo.md)
 
 ---
 
@@ -95,7 +95,7 @@ Owner key: **M** = Mitesh, **T** = Tahir, **J** = Jignas.
 Contracts live in `contracts/` and are the single source of truth. A test fails if Pydantic models drift from the JSON Schemas.
 
 ### 4.1 Complaint (request) `complaint.v1`
-See field table in `work/JIGNAS.md §3.1`. Cross-field rules: `date_filed ≥ date_of_event`; `prior_complaint_date` required iff `prior_complaint_to_entity = true`; `is_synthetic` must be true.
+See the field table in [data_contract.md](data_contract.md). Cross-field rules: `date_filed ≥ date_of_event`; `prior_complaint_date` required iff `prior_complaint_to_entity = true`; `is_synthetic` must be true.
 
 ### 4.2 Determination (response) `determination.v1`
 
@@ -143,7 +143,7 @@ See `ARCHITECTURE.md §11`.
 Pinned in `corpus/MANIFEST.yaml` (URL, version/date, SHA-256, text-layer flag). **Unverified assumptions to confirm in week 1:** the current version of each document; whether the SEBI master circular alone covers registrars, listed companies and depositories; whether a text layer exists. If an entity category cannot be supported from the corpus, F7 requires escalation for it, and the report must say so.
 
 ### 5.2 Chunking and embedding
-See `ARCHITECTURE.md §5` and `work/TAHIR.md §3.3`. Summary: clause-aligned chunks with heading-path metadata; scope cards as finding aids; local MiniLM embeddings; Chroma with content-hash IDs; hybrid retrieval pending A/B.
+See [Architecture §5](ARCHITECTURE.md#5-retrieval-and-indexing-design) and the [retrieval strategy](retrieval_strategy.md). Summary: clause-aligned chunks with heading-path metadata; scope cards as finding aids; local MiniLM embeddings; Chroma with content-hash IDs. Hybrid retrieval showed no gain in the measured comparison.
 
 ### 5.3 Idempotency and re-embedding
 Chunk id = hash of (doc, clause, text, model tag). Re-run = no change. `--re-embed --model-tag X` replaces vectors for that tag by id.
@@ -185,7 +185,7 @@ See determination schema. Every escalation includes partial findings so the offi
 `prompts/<name>/<version>.yaml` with `id, version, template, variables, changelog`. Loader records versions per response. Variants compared on the same set; the report states the winner, the metric and the delta. If the difference is within noise (small eval set), say so.
 
 ### 7.2 Evaluation (L3)
-Set of ≥20 scenarios with labels and supporting passages (composition in `work/TAHIR.md §3.5`). Metrics: groundedness, context relevance, faithfulness, hallucination rate (definitions per the course glossary; computation documented in the report), plus route accuracy and escalation precision/recall computed from labels. Batch CLI: `make eval`. Deliberate-change experiment with before/after table.
+The [evaluation set](evaluation.md#1-scenarios) contains at least 20 labelled scenarios with supporting passages. Metrics: groundedness, context relevance, faithfulness, hallucination rate, plus route accuracy and escalation precision/recall computed from labels. Batch CLI: `make eval`. The evaluation writeup records the deliberate-change experiment and before/after table.
 
 **Honesty notes for the report:** LLM-judge metrics are noisy and groundedness and faithfulness will be highly correlated; 20 scenarios give wide confidence intervals; hold out ≥5 scenarios from tuning.
 
@@ -294,9 +294,9 @@ Daily: 15-minute standup (what shipped, what blocks). Weekly: clean-clone test o
 
 1. **Contracts first.** Interfaces frozen Day 3; any change needs an ADR (`docs/decisions/NNN-title.md`) and three approvals.
 2. **Ownership.** Each member commits only in their directories; cross-directory changes via PR to the owner. CODEOWNERS enforces review.
-3. **Mock everything you depend on.** Each work brief names the mock for each dependency.
+3. **Mock dependencies.** Keep local mocks for unavailable services so components can be tested independently.
 4. **Branching.** `main` always runs (`docker compose up` works). Feature branches `feat/<owner>/<topic>`. Squash merge. CI runs lint, tests, secret scan.
-5. **Running logs.** Each member keeps `docs/work/notes_<name>.md` (what tried, what failed, numbers). The "what did not work" report section is built from it, so failing to log costs marks.
+5. **Running logs.** Record what was tried, what failed, and measured results during development. After findings are published in the technical documentation and CI artifacts, obsolete personal notes can be removed.
 6. **Incidents.** Any real failure → append to `docs/incident_log.md` the same day.
 7. **No heroics after Day 43.** Only bug fixes.
 

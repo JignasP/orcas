@@ -1,6 +1,6 @@
-# Chunking & retrieval strategy (L1 — documented, assessed)
+# Chunking and retrieval strategy
 
-How ORCAS segments the corpus and why, with the Slice-4 benchmark that justifies the choice.
+How ORCAS segments the corpus and why, with the benchmark that justifies the choice.
 
 ## Strategies
 - **fixed** (`--strategy fixed`): fixed-size word windows (180 words, 40 overlap), positional
@@ -26,7 +26,7 @@ How ORCAS segments the corpus and why, with the Slice-4 benchmark that justifies
 
 `mean_hit_score` = dense cosine similarity of the first correct hit (ranking sharpness).
 
-## Findings (honest — for the report's "what did not work")
+## Findings
 - **Fixed-window wins raw recall@k** by a small margin, for an unglamorous reason: bigger chunks
   contain more text, so a target phrase is more likely to fall inside *some* top-k chunk. This is a
   recall-vs-granularity artefact, not better retrieval.
@@ -34,9 +34,8 @@ How ORCAS segments the corpus and why, with the Slice-4 benchmark that justifies
   provision retrieves at **0.809** clause-aligned vs ~0.63 fixed — and, decisively, it produces
   **clause-level citations that resolve** (`doc_id`/`clause_id`/`quote_span`), which is what the
   Verifier's grounding check needs. Fixed-window positional ids (`p6w0`) are not citable provisions.
-- **Hybrid (dense + BM25, RRF) showed no recall gain** on these probes. Per the plan's tier-3 rule
-  ("keep hybrid only if the A/B shows gain"), **`hybrid_enabled=false` by default**; it remains
-  available via `mode=hybrid` and will be re-tested on the full ≥20-scenario set in Slice 5.
+- **Hybrid (dense + BM25, RRF) showed no recall gain** on these probes. Therefore
+  **`hybrid_enabled=false` by default**; it remains available via `mode=hybrid`.
 
 **Decision:** ship **clause-aligned** as the production default — the marginal recall dip is
 outweighed by citable, grounded provisions and sharper ranking, which is what verification and the

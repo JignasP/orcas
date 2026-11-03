@@ -3,7 +3,7 @@
 ```bash
 make eval                      # or: python -m eval.run_eval  (writes eval/results/latest.json)
 python -m eval.run_eval --tag baseline
-python -m eval.benchmark_chunking   # Slice-4 chunking A/B
+python -m eval.benchmark_chunking   # chunking A/B
 python -m eval.experiment           # deliberate-change before/after + variant comparison
 python -m eval.cache_effect         # retrieval cache hit ratio + latency (cold vs warm)
 python -m eval.live_scorer          # L6 live sampled scoring + feedback aggregation
@@ -17,7 +17,7 @@ python -m eval.trulens_eval         # TruLens feedback-provider integration (opt
   an LLM judge with the same interface swaps in for the L2 prompt comparison.
 - `metrics.py` — groundedness, context relevance, faithfulness, hallucination rate (claim-level)
   + route accuracy and escalation precision/recall (label-based).
-- `sut.py` — system-under-test: a baseline rule+retrieval answerer now; Mitesh's agent drops in later.
+- `sut.py` — baseline rule+retrieval system under test. Its scores are not agent scores.
 - `run_eval.py` — batch CLI; `benchmark_chunking.py` — chunking A/B; `trulens_eval.py` — TruLens wiring.
 
-Full write-up + baseline numbers + honesty notes: `docs/work/tahir/evaluation.md`.
+Full method, baseline numbers, and limitations: [docs/evaluation.md](../docs/evaluation.md).

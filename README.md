@@ -53,7 +53,7 @@ Full detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 | LLM access | Own `llm-gateway` service (LiteLLM adapters, provider chosen by env var) |
 | Evaluation | TruLens + custom claim-level hallucination metric |
 | Observability | JSON logs, run events, OpenTelemetry/Jaeger, Prometheus, Grafana |
-| Load test | Locust measures submit-to-terminal latency; [measured results](docs/work/jignas/report-sections.md) |
+| Load test | Locust measures submit-to-terminal latency; [method and results](loadtest/README.md) |
 | Packaging | Docker Compose |
 
 ## 4. Setup / installation
@@ -61,7 +61,7 @@ Full detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ### Prerequisites
 - Docker Engine ≥ 24 and Docker Compose v2
 - ~8 GB free RAM, ~5 GB disk
-- No LLM API key is needed for the initial demo; the stub is enabled by default
+- No LLM API key is needed for the default local run; the stub is enabled by default
 - Set `ORCAS_ADMIN_TOKEN` in `.env` to inspect quarantine and feedback totals
 - Python 3.11 is only needed if you want to run CLIs/tests outside Docker
 
@@ -75,7 +75,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-On Windows PowerShell, use `Copy-Item .env.example .env` for the copy step. The first start builds the corpus index through the `ingest` one-shot service and creates the database tables through `migrate`. Wait until `docker compose ps` shows the long-running services healthy. Run `make doctor` or `python scripts/doctor.py` to check readiness. See the [demo guide](docs/initial_demo.md) for the valid request and quarantine proof.
+On Windows PowerShell, use `Copy-Item .env.example .env` for the copy step. The first start builds the corpus index through the `ingest` one-shot service and creates the database tables through `migrate`. Wait until `docker compose ps` shows the long-running services healthy. Run `make doctor` or `python scripts/doctor.py` to check readiness.
 
 | What | URL |
 |---|---|
@@ -99,6 +99,13 @@ docker compose up --scale worker=3
 ```bash
 python scripts/demo/initial_demo.py
 ```
+
+The script submits a valid bank fixed-deposit complaint, polls its result, and
+checks that a malformed request returns `422` with a quarantine ID. For the
+input guardrail and observability checks, run
+`python scripts/demo/check_guardrail_rejection.py`,
+`python scripts/demo/check_jaeger_trace.py`, and
+`python scripts/demo/check_observability.py` against the running stack.
 
 ### Evaluate and test
 
@@ -138,21 +145,21 @@ orcas/
 └── docs/
     ├── ARCHITECTURE.md
     ├── PROJECT_DOCUMENTATION.md
-    ├── initial_demo.md
     ├── data_contract.md
     ├── slo.md
     ├── runbook.md
     ├── incident_log.md
     ├── decisions/                # ADRs (one file per decision)
-    └── work/                     # MITESH.md · TAHIR.md · JIGNAS.md
+    ├── retrieval_strategy.md
+    └── evaluation.md
 ```
 
 ## 6. Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Complete project documentation](docs/PROJECT_DOCUMENTATION.md)
-- Work breakdown: [Mitesh](docs/work/MITESH.md) · [Tahir](docs/work/TAHIR.md) · [Jignas](docs/work/JIGNAS.md)
-- [Initial demo](docs/initial_demo.md) and [data contract](docs/data_contract.md)
+- [Data contract](docs/data_contract.md), [processing SLO](docs/slo.md), and [operations runbook](docs/runbook.md)
+- [Retrieval strategy](docs/retrieval_strategy.md) and [evaluation results](docs/evaluation.md)
 
 ## 7. Reference links
 
@@ -179,11 +186,11 @@ orcas/
 
 ## 8. Contributors
 
-| Name | Area | Details |
-|---|---|---|
-| **Mitesh** | Agent core & LLM layer: LangGraph agents, verification, resilience, prompts, LLM gateway, output guardrails, cost tracking | [`docs/work/MITESH.md`](docs/work/MITESH.md) |
-| **Tahir** | Data & quality: corpus, ingestion, retrieval service, evaluation, live quality scoring, web client | [`docs/work/TAHIR.md`](docs/work/TAHIR.md) |
-| **Jignas** | Platform & reliability: gateway, validation & quarantine, queue, Compose, observability, load testing, scaling, runbook | [`docs/work/JIGNAS.md`](docs/work/JIGNAS.md) |
+| Name | Area |
+|---|---|
+| **Mitesh** | Agent core & LLM layer: LangGraph agents, verification, resilience, prompts, LLM gateway, output guardrails, cost tracking |
+| **Tahir** | Data & quality: corpus, ingestion, retrieval service, evaluation, live quality scoring, web client |
+| **Jignas** | Platform & reliability: gateway, validation & quarantine, queue, Compose, observability, load testing, scaling, runbook |
 
 ### Contribution rules
 - Branch per task: `feat/<owner>/<topic>`; PRs into `main`; CI must pass.
