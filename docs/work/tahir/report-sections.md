@@ -34,7 +34,8 @@ Clause-aligned segmentation is the production default: regex clause/`CHAPTER` de
 real `clause_id` + `heading_path`, preamble captured, long clauses split into `#k` sub-chunks, each
 tagged with inferred `entity_types`/`product_types`. Scope cards (one per framework) are finding aids
 that carry `source_clause_chunk_id` — **citations resolve to the source clause, never the card.**
-Retrieval: dense (MiniLM, cosine) with `framework`/`doc_id`/`chunk_type` filters pushed to Chroma and
+Retrieval is orchestrated with LangChain: a `BaseRetriever` over Chroma with a LangChain `Embeddings`
+wrapper for the local MiniLM model. Dense (cosine) search with `framework`/`doc_id`/`chunk_type` filters pushed to Chroma and
 `entity_type`/`product_type` post-filters; optional hybrid (dense+BM25, RRF); Redis-or-in-memory cache
 keyed by `(norm query, filters, mode, k, index_version)`.
 

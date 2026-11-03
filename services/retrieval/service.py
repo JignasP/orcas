@@ -1,9 +1,10 @@
 """Retrieval logic over Chroma. Pure functions the FastAPI app wraps.
 
-Slice-4 scope: dense OR hybrid (dense+BM25, RRF-fused) search; scalar filters
-(framework/doc_id/chunk_type) pushed to Chroma; entity_type/product_type applied as
-post-filters (they are list-valued metadata, so Chroma equality can't express them);
-chunk resolution with quote-span verification; clause lookup; index info.
+Dense OR hybrid (dense+BM25, RRF-fused) search. The dense search runs through a LangChain
+retriever (langchain_retriever.py); scalar filters (framework/doc_id/chunk_type) are pushed to
+Chroma; entity_type/product_type are applied as post-filters (they are list-valued metadata, so
+Chroma equality can't express them). Also chunk resolution with quote-span verification, clause
+lookup and index info.
 """
 from __future__ import annotations
 
@@ -11,10 +12,10 @@ import time
 from typing import Any, Dict, List, Optional
 
 from services.corpus_common import store
-from services.corpus_common.embedding import embed_query
 
 from .cache import get_cache, make_key
 from .hybrid import BM25Index, rrf_fuse
+from .langchain_retriever import SCORE_KEY, OrcasDenseRetriever
 from .models import (
     Chunk,
     Clause,
@@ -97,19 +98,12 @@ class Retriever:
         return self._bm25
 
     def _dense_pool(self, query: str, where, n: int):
-        res = self.col.query(
-            query_embeddings=[embed_query(query)],
-            n_results=n,
-            where=where,
-            include=["documents", "metadatas", "distances"],
-        )
-        ids = (res.get("ids") or [[]])[0]
-        docs = (res.get("documents") or [[]])[0]
-        metas = (res.get("metadatas") or [[]])[0]
-        dists = (res.get("distances") or [[]])[0]
+        docs = OrcasDenseRetriever(collection=self.col, k=n, where=where).invoke(query)
+        ids = [d.id for d in docs]
         pool = {}
-        for i, cid in enumerate(ids):
-            pool[cid] = (docs[i], metas[i], 1.0 - float(dists[i]))
+        for d in docs:
+            meta = {k: v for k, v in d.metadata.items() if k != SCORE_KEY}
+            pool[d.id] = (d.page_content, meta, d.metadata[SCORE_KEY])
         return ids, pool
 
     def search(self, req: SearchRequest) -> SearchResponse:

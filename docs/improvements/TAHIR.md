@@ -192,10 +192,10 @@ When the audit ran the real worker pipeline (stub mode, the default Compose wiri
 **Problem.** The brief requires retrieval to be orchestrated with LangChain or LlamaIndex. No code imports either; there's only an unused `langchain-core` dependency in the worker. The README says LangChain is used.
 
 **What to do**
-- [ ] Implement `OrcasRetriever(BaseRetriever)` from `langchain_core`, wrapping the Chroma query and filters (hybrid via an ensemble retriever is optional). Route `Retriever.search`'s dense path through it.
-- [ ] Keep the API contract unchanged, and keep the tests passing.
-- [ ] Document how LangChain is used in `chunking.md` and send Jignas a line for the README.
-- [ ] If this isn't finished in time, ask Jignas to correct the README, and state the deviation in the report.
+- [x] Implement `OrcasRetriever(BaseRetriever)` from `langchain_core`, wrapping the Chroma query and filters (hybrid via an ensemble retriever is optional). Route `Retriever.search`'s dense path through it.
+- [x] Keep the API contract unchanged, and keep the tests passing.
+- [x] Document how LangChain is used in `chunking.md` and send Jignas a line for the README.
+- [x] *(Not needed: done.)* If this isn't finished in time, ask Jignas to correct the README, and state the deviation in the report.
 
 ### T8 · Ingest: throughput metrics, stable `index_version`, incremental embedding
 **Requirements:** D2, D7 · **Audit:** D2
