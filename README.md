@@ -1,10 +1,8 @@
-# ORCAS
+# 🐋 ORCAS
 
 **Orchestrated Regulatory Complaint Analysis & Routing System**
 
 > A multi-agent, production-style service that reads a free-text investor complaint, decides *which regulator* (SEBI or RBI) and *which regulated entity* is responsible, and routes it with verified, circular-level citations. When it cannot be sure, it escalates to a human instead of guessing.
-
-Course project: **UE24AM342AA5 – ML System Design & AgentOps** (PES University, Dept. of CSE – AI & ML) · Mini Project 12 · Team of 3.
 
 > ⚠️ **Synthetic data only.** ORCAS never submits anything to a real regulator portal. It never *disposes* of a complaint; it produces a routing determination with evidence, and a grievance officer decides.
 
