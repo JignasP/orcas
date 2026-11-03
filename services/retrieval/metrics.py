@@ -1,4 +1,4 @@
-"""Prometheus metrics for the retrieval service (F8, D5; freshness D2).
+"""Prometheus metrics for the retrieval service (F8, D5; freshness and ingest throughput D2).
 
 Metric names use the `orcas_` prefix agreed in ARCHITECTURE.md §8. The cache
 counters exist from v0 (always a miss until the Slice-6 Redis cache lands) so the
@@ -32,6 +32,15 @@ INDEX_CHUNKS = Gauge("orcas_index_chunks", "Number of chunks in the index")
 INDEX_BUILT_TS = Gauge(
     "orcas_index_built_timestamp", "Index build time (unix seconds)"
 )
+DOC_CHUNKS = Gauge(
+    "orcas_index_document_chunks",
+    "Chunks per indexed document; labels name the pinned version and source checksum",
+    ["doc_id", "version", "sha256"],
+)
+INGEST_CHUNKS_PER_S = Gauge("orcas_ingest_chunks_per_second", "Throughput of the last ingest (chunks/s)")
+INGEST_PAGES_PER_S = Gauge("orcas_ingest_pages_per_second", "Throughput of the last ingest (pages/s)")
+INGEST_ELAPSED = Gauge("orcas_ingest_elapsed_seconds", "Duration of the last ingest")
+INGEST_EMBEDDED = Gauge("orcas_ingest_embedded_chunks", "Chunks the last ingest embedded (0 if unchanged)")
 
 
 def refresh_index_gauges() -> None:
@@ -44,3 +53,12 @@ def refresh_index_gauges() -> None:
             INDEX_BUILT_TS.set(datetime.fromisoformat(built_at).timestamp())
         except ValueError:
             pass
+    DOC_CHUNKS.clear()  # drop documents no longer in the index
+    for doc in info.get("documents", []):
+        DOC_CHUNKS.labels(doc.get("doc_id", ""), doc.get("version", ""),
+                          (doc.get("source_sha256") or "")[:12]).set(doc.get("chunk_count") or 0)
+    throughput = info.get("throughput") or {}
+    for gauge, key in ((INGEST_CHUNKS_PER_S, "chunks_per_s"), (INGEST_PAGES_PER_S, "pages_per_s"),
+                       (INGEST_ELAPSED, "elapsed_s"), (INGEST_EMBEDDED, "embedded")):
+        if key in throughput:
+            gauge.set(throughput[key])
