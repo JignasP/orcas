@@ -346,9 +346,11 @@ def generate_stub_reply(request: ChatRequest) -> str:
                 "citations": [],
             })
 
+        has_ledger = "Evidence Ledger:" in combined
+
         if is_rbi:
             citation = citation_from_evidence(combined, "RBI")
-            if not citation:
+            if not citation and not has_ledger:
                 citation = {
                     "citation_id": "c1",
                     "doc_id": "rbi_integrated_ombudsman_scheme_2021",
@@ -358,16 +360,19 @@ def generate_stub_reply(request: ChatRequest) -> str:
                     "chunk_id": _RBI_CHUNK_ID,
                     "quote_span": "deficiency in service may file a complaint under the Scheme",
                 }
+            citations = [citation] if citation else []
+            basis = (
+                "Bank fixed deposit interest dispute falls under the RBI Integrated "
+                "Ombudsman Scheme, 2021 for deficiencies in service [c1]."
+                if citation else "No RBI passage was retrieved for verification."
+            )
             return json.dumps({
                 "route": "refer_to_other_regulator",
                 "regulator": "RBI",
                 "entity_type": "bank",
-                "timeline": {"days": 30, "basis_citation_id": "c1"},
-                "basis": (
-                    "Bank fixed deposit interest dispute falls under the RBI Integrated "
-                    "Ombudsman Scheme, 2021 for deficiencies in service [c1]."
-                ),
-                "citations": [citation],
+                "timeline": None,
+                "basis": basis,
+                "citations": citations,
             })
 
         # SEBI default (broker / MF / registrar / listed / depository)
@@ -382,29 +387,33 @@ def generate_stub_reply(request: ChatRequest) -> str:
         else:
             entity_type, product_label = "broker", "broker"
 
+        citation = citation_from_evidence(combined, "SEBI")
+        if not citation and not has_ledger:
+            citation = {
+                "citation_id": "c1",
+                "doc_id": "sebi_scores_master_circular",
+                "doc_title": "SEBI Master Circular on Investor Grievance Redressal",
+                "circular_ref": "SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/145",
+                "clause": "2",
+                "chunk_id": _SEBI_CHUNK_ID,
+                "quote_span": (
+                    "registered intermediaries and recognised MIIs that such investor "
+                    "grievances may be resolved faster"
+                ),
+            }
+        citations = [citation] if citation else []
+        basis = (
+            f"Investor grievance against {product_label} falls under SEBI SCORES framework [c1]."
+            if citation else "No SEBI passage was retrieved for verification."
+        )
+
         return json.dumps({
             "route": "assign_to_entity",
             "regulator": "SEBI",
             "entity_type": entity_type,
-            "timeline": {"days": 30, "basis_citation_id": "c1"},
-            "basis": (
-                f"Investor grievance against {product_label} falls under SEBI SCORES "
-                "framework with 30-day resolution timeline [c1]."
-            ),
-            "citations": [
-                {
-                    "citation_id": "c1",
-                    "doc_id": "sebi_scores_master_circular",
-                    "doc_title": "SEBI Master Circular on Investor Grievance Redressal",
-                    "circular_ref": "SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/145",
-                    "clause": "2",
-                    "chunk_id": _SEBI_CHUNK_ID,
-                    "quote_span": (
-                        "registered intermediaries and recognised MIIs that such investor "
-                        "grievances may be resolved faster"
-                    ),
-                }
-            ],
+            "timeline": None,
+            "basis": basis,
+            "citations": citations,
         })
 
     # -------------------------------------------------------------------
