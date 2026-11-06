@@ -24,3 +24,23 @@ from eval.sut import classify
 ])
 def test_classify(text, route, reg, ent, esc):
     assert classify(text) == (route, reg, ent, esc)
+
+
+def test_baseline_claims_are_its_own_text_not_copied_passages():
+    from eval.sut import BaselineSUT
+
+    class OnePassage:
+        def search(self, req):
+            class P:
+                chunk_id, text = "c1", "Any customer aggrieved may file a complaint under the Scheme."
+
+            class R:
+                results = [P()]
+            return R()
+
+    scenario = {"id": "s", "complaint_text": "My UPI payment failed and the bank debited me.",
+                "expected_route": "refer_to_other_regulator", "expected_regulator": "RBI",
+                "expected_entity_type": "bank", "expected_escalation": False}
+    r = BaselineSUT(retriever=OnePassage()).run(scenario)
+    assert r.claims == ["The complaint is routed as refer_to_other_regulator to RBI as a bank matter."]
+    assert r.retrieved_chunk_ids == ["c1"] and r.cited_chunk_ids is None

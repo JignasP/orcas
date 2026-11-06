@@ -43,6 +43,39 @@ STUB_DELAY_MS = int(os.getenv("STUB_DELAY_MS", "1500"))
 # ---------------------------------------------------------------------------
 
 
+def citation_from_evidence(prompt: str, framework: str) -> dict | None:
+    """Pick an exact quote from retrieved evidence in the draft prompt."""
+    match = re.search(r"Evidence Ledger:\s*(\[[^\r\n]*\])", prompt)
+    if not match:
+        return None
+    try:
+        ledger = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    candidates = [item for item in ledger if item.get("framework") == framework
+                  and item.get("chunk_type", "clause") != "scope_card" and item.get("text")]
+    if not candidates:
+        return None
+    keywords = ("deficiency in service", "regulated by reserve bank") if framework == "RBI" else (
+        "investor grievances", "registered intermediaries", "mutual fund"
+    )
+    selected = next((item for word in keywords for item in candidates
+                     if word in item["text"].lower()), candidates[0])
+    passage = selected["text"]
+    phrase = next((word for word in keywords if word in passage.lower()), "")
+    start = max(0, passage.lower().find(phrase) - 30) if phrase else 0
+    quote_span = passage[start:start + 180]
+    return {
+        "citation_id": "c1",
+        "doc_id": selected.get("doc_id", ""),
+        "doc_title": selected.get("doc_title", ""),
+        "circular_ref": selected.get("circular_ref", ""),
+        "clause": selected.get("clause_id", ""),
+        "chunk_id": selected["chunk_id"],
+        "quote_span": quote_span,
+    }
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -314,6 +347,17 @@ def generate_stub_reply(request: ChatRequest) -> str:
             })
 
         if is_rbi:
+            citation = citation_from_evidence(combined, "RBI")
+            if not citation:
+                citation = {
+                    "citation_id": "c1",
+                    "doc_id": "rbi_integrated_ombudsman_scheme_2021",
+                    "doc_title": "Reserve Bank - Integrated Ombudsman Scheme, 2021",
+                    "circular_ref": "RBI/2021-2022/126",
+                    "clause": "9",
+                    "chunk_id": _RBI_CHUNK_ID,
+                    "quote_span": "deficiency in service may file a complaint under the Scheme",
+                }
             return json.dumps({
                 "route": "refer_to_other_regulator",
                 "regulator": "RBI",
@@ -323,17 +367,7 @@ def generate_stub_reply(request: ChatRequest) -> str:
                     "Bank fixed deposit interest dispute falls under the RBI Integrated "
                     "Ombudsman Scheme, 2021 for deficiencies in service [c1]."
                 ),
-                "citations": [
-                    {
-                        "citation_id": "c1",
-                        "doc_id": "rbi_integrated_ombudsman_scheme_2021",
-                        "doc_title": "Reserve Bank - Integrated Ombudsman Scheme, 2021",
-                        "circular_ref": "RBI/2021-2022/126",
-                        "clause": "9",
-                        "chunk_id": _RBI_CHUNK_ID,
-                        "quote_span": "deficiency in service may file a complaint under the Scheme",
-                    }
-                ],
+                "citations": [citation],
             })
 
         # SEBI default (broker / MF / registrar / listed / depository)

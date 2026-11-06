@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -42,10 +43,17 @@ class LLMUnavailable(Exception):
 class LLMClient:
     """Client for calling the ORCAS LLM Gateway from worker agents."""
 
-    def __init__(self, gateway_url: Optional[str] = None):
+    def __init__(
+        self,
+        gateway_url: Optional[str] = None,
+        run_id: Optional[str] = None,
+        on_call=None,
+    ):
         self.gateway_url = gateway_url or os.getenv(
             "LLM_GATEWAY_URL", "http://localhost:8002"
         )
+        self.run_id = run_id
+        self.on_call = on_call
 
     def chat(
         self,
@@ -65,19 +73,25 @@ class LLMClient:
         LLMUnavailable
             If the gateway is unreachable, returns non-200, or times out.
         """
+        started = time.monotonic()
+        effective_run_id = run_id or self.run_id
         payload = {
             "messages": messages,
             "temperature": temperature,
-            "run_id": run_id,
+            "run_id": effective_run_id,
             "agent": agent,
             "step": step,
             "prompt_version": prompt_version,
         }
+        headers = {"X-Correlation-ID": effective_run_id} if effective_run_id else {}
+
         try:
             with httpx.Client(timeout=timeout) as client:
-                resp = client.post(f"{self.gateway_url}/v1/chat", json=payload)
+                resp = client.post(f"{self.gateway_url}/v1/chat", json=payload, headers=headers)
                 if resp.status_code == 200:
-                    return resp.json()
+                    result = resp.json()
+                    self._record_call(agent, step, prompt_version, result, started)
+                    return result
                 raise LLMUnavailable(
                     f"LLM Gateway returned HTTP {resp.status_code} for step={step}",
                     agent=agent,
@@ -98,6 +112,19 @@ class LLMClient:
                 agent=agent,
                 step=step,
             ) from exc
+
+    def _record_call(self, agent, step, prompt_version, result, started):
+        if self.on_call:
+            try:
+                self.on_call(
+                    agent or "unknown",
+                    step or "unknown",
+                    prompt_version or "unknown",
+                    result,
+                    round((time.monotonic() - started) * 1000),
+                )
+            except Exception as e:
+                logger.warning("Error in on_call callback: %s", e)
 
     @staticmethod
     def extract_json(text: str) -> Dict[str, Any]:

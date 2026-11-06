@@ -18,6 +18,7 @@ from typing import List, Optional, Tuple
 
 from services.corpus_common.ids import chunk_id
 from services.corpus_common.store import ChunkRecord
+
 from .metadata import infer_entity_product
 from .parse import Page
 

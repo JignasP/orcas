@@ -2,13 +2,15 @@
 20-line fake server"). NOT the real gateway (that is Jignas's service).
 
 Implements the documented contract:
-  POST /v1/complaints        -> 202 {run_id, status_url}
-  GET  /v1/runs/{run_id}     -> run_status.v1 (result: determination.v1 when terminal)
+  POST /v1/complaints          -> 202 {run_id, status_url}
+  GET  /v1/runs/{run_id}       -> run_status.v1 (result: determination.v1 when terminal)
+  GET  /v1/runs/{run_id}/trace -> ordered events, incl. the passages the run retrieved
 and serves the static client at / so the page is same-origin (no CORS needed).
 
 Status is time-based (queued -> running -> terminal) to mimic the async queue without
 threads. The determination is canned from the complaint text so demo presets route the
-way the reference answers expect; the §4.1 case uses the real pinned citations.
+way the reference answers expect; the §4.1 case uses the pinned reference passages
+(docs/work/tahir/evaluation-1-package.md, addendum).
 
 Run:  uvicorn services.web.fake_gateway:app --port 8000
 """
@@ -28,7 +30,7 @@ app = FastAPI(title="ORCAS fake gateway (dev only)")
 _RUNS: dict[str, dict] = {}
 _FEEDBACK: dict[str, dict] = {}
 STATIC = Path(__file__).resolve().parent / "static"
-INDEX_VERSION = "minilm-l6-v2.devfake.606"
+INDEX_VERSION = "minilm-l6-v2.clause.devfake.637"
 
 
 class Complaint(BaseModel):
@@ -73,10 +75,51 @@ def get_run(run_id: str):
     return {"run_id": run_id, "status": status, "submitted_at": run["submitted_at"]}
 
 
-def _cite(citation_id, doc_id, doc_title, circular_ref, clause, chunk_id, quote, passage_text=""):
+SEBI_DOC = ("sebi_scores_master_circular",
+            "Master Circular on the redressal of investor grievances through the SEBI Complaints "
+            "Redress System (SCORES) platform", "SEBI/HO/OIAE/IGRD/P/CIR/2022/0150")
+RBI_DOC = ("rbi_integrated_ombudsman_scheme_2021", "Reserve Bank - Integrated Ombudsman Scheme, 2021",
+           "Reserve Bank - Integrated Ombudsman Scheme, 2021")
+# chunk_id -> (doc, clause, retrieved text), copied from the clause index
+PASSAGES = {
+    "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e": (SEBI_DOC, "2",
+        "2. SEBI had been receiving inputs from listed companies, registered intermediaries and "
+        "recognised MIIs that such investor grievances may be resolved faster if these grievances are "
+        "taken up directly with the entity concerned at the first instance. Accordingly, it is now "
+        "mandatory for investors to first take up their grievances for redressal with the entity "
+        "concerned, through their designated persons/officials who handle issues relating to "
+        "compliance and redressal of investor grievances."),
+    "c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0": (RBI_DOC, "preamble",
+        "1 THE RESERVE BANK - INTEGRATED OMBUDSMAN SCHEME, 2021 A Scheme for resolving customer "
+        "grievances in relation to services provided by entities regulated by Reserve Bank of India in "
+        "an expeditious and cost-effective manner under Section 35A of the Banking Regulation Act, "
+        "1949 (10 of 1949), Section 45L of the Reserve Bank of India Act, 1934 (2 of 1934) and Section "
+        "18 of the Payment and Settlement Systems Act, 2007 (51 of 2007)."),
+    "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64": (RBI_DOC, "9",
+        "9. Grounds of Complaint Any customer aggrieved by an act or omission of a Regulated Entity "
+        "resulting in deficiency in service may file a complaint under the Scheme personally or "
+        "through an authorised representative as defined under clause 3(1)(c)."),
+}
+
+
+def _cite(citation_id: str, chunk_id: str, quote: str) -> dict:
+    (doc_id, doc_title, circular_ref), clause, text = PASSAGES[chunk_id]
+    assert quote in text
     return {"citation_id": citation_id, "doc_id": doc_id, "doc_title": doc_title,
-            "circular_ref": circular_ref, "clause": clause, "chunk_id": chunk_id,
-            "quote_span": quote, "passage_text": passage_text}
+            "circular_ref": circular_ref, "clause": clause, "chunk_id": chunk_id, "quote_span": quote}
+
+
+@app.get("/v1/runs/{run_id}/trace")
+def get_trace(run_id: str):
+    run = _RUNS.get(run_id)
+    if not run:
+        return JSONResponse(status_code=404, content={"error": "unknown run_id"})
+    det = _determination(run_id, run["text"])
+    passages = [{"chunk_id": c["chunk_id"], "doc_id": c["doc_id"], "quote_span": None,
+                 "text": PASSAGES[c["chunk_id"]][2]} for c in det["citations"]]
+    events = [{"seq": 1, "agent": "retrieval", "step": "search", "kind": "tool_call", "latency_ms": 12,
+               "payload": {"query": run["text"], "passages": passages}, "cost_usd": 0.0}]
+    return {"run_id": run_id, "status": det["status"], "events": events, "total_cost_usd": 0.0}
 
 
 @app.post("/v1/runs/{run_id}/feedback")
@@ -96,31 +139,20 @@ def _determination(run_id: str, text: str) -> dict:
             or "term-deposit" in t or "term deposit" in t or " fd " in f" {t} "):
         return {**base, "status": "completed", "route": "refer_to_other_regulator",
                 "regulator": "RBI", "entity_type": "bank",
-                "basis": "The complaint concerns a bank fixed deposit, a banking product. SEBI's SCORES "
-                         "covers securities-market entities [c1], not bank deposits. The RBI Integrated "
-                         "Ombudsman Scheme applies to entities regulated by the Reserve Bank [c2] and "
-                         "provides grounds of complaint for deficiency in service [c3]. Referred to RBI.",
+                "basis": "The complaint concerns a fixed deposit opened through a bank, which is a banking "
+                         "product rather than a securities-market product. SEBI's SCORES mechanism is "
+                         "addressed to listed companies, registered intermediaries and recognised MIIs "
+                         "[c1]. The RBI Integrated Ombudsman Scheme covers services provided by entities "
+                         "regulated by the Reserve Bank [c2], and a customer aggrieved by a Regulated "
+                         "Entity's deficiency in service may complain under it [c3]. Referred to RBI.",
                 "citations": [
-                    _cite("c1", "sebi_scores_master_circular", "SEBI SCORES Master Circular",
-                          "SEBI/HO/OIAE/IGRD/P/CIR/2022/0150", "p1w1",
-                          "ae8861c58c329fc7062bef1db8c34b7cf6efbf1398ed39367f0efd2815d42d7f",
-                          "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster"),
-                    _cite("c2", "rbi_integrated_ombudsman_scheme_2021", "RBI Integrated Ombudsman Scheme 2021",
-                          "RBI IOS 2021", "preamble",
-                          "801da99662534d0c3a0f0e8cd188d1394aee534a498b2a08a140cfa5ea9faf91",
-                          "regulated by Reserve Bank of India in an expeditious and cost-effective manner",
-                          "A Scheme for resolving customer grievances in relation to services provided by "
-                          "entities regulated by Reserve Bank of India in an expeditious and cost-effective "
-                          "manner under Section 35A of the Banking Regulation Act, 1949, Section 45L of the "
-                          "Reserve Bank of India Act, 1934 and Section 18 of the Payment and Settlement "
-                          "Systems Act, 2007."),
-                    _cite("c3", "rbi_integrated_ombudsman_scheme_2021", "RBI Integrated Ombudsman Scheme 2021",
-                          "RBI IOS 2021", "9",
-                          "7b4481e134cbf5696953bd16b43861b2c2fe762584e280c55423ab1a7a0fb53e",
-                          "deficiency in service may file a complaint under the Scheme",
-                          "9. Grounds of Complaint — Any customer aggrieved by an act or omission of a "
-                          "Regulated Entity resulting in deficiency in service may file a complaint under "
-                          "the Scheme personally or through an authorised representative."),
+                    _cite("c1", "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e",
+                          "registered intermediaries and recognised MIIs that such investor grievances "
+                          "may be resolved faster"),
+                    _cite("c2", "c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0",
+                          "services provided by entities regulated by Reserve Bank of India"),
+                    _cite("c3", "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64",
+                          "deficiency in service may file a complaint under the Scheme"),
                 ],
                 "escalation": None,
                 "verification": {"passed": True, "claims_checked": 3, "claims_supported": 3, "attempts": 1}}
@@ -139,10 +171,9 @@ def _determination(run_id: str, text: str) -> dict:
             "entity_type": entity,
             "basis": "A securities-market grievance handled under SEBI's SCORES; assigned to the concerned entity [c1].",
             "citations": [
-                _cite("c1", "sebi_scores_master_circular", "SEBI SCORES Master Circular",
-                      "SEBI/HO/OIAE/IGRD/P/CIR/2022/0150", "p1w1",
-                      "ae8861c58c329fc7062bef1db8c34b7cf6efbf1398ed39367f0efd2815d42d7f",
-                      "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster"),
+                _cite("c1", "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e",
+                      "registered intermediaries and recognised MIIs that such investor grievances may "
+                      "be resolved faster"),
             ],
             "escalation": None,
             "verification": {"passed": True, "claims_checked": 1, "claims_supported": 1, "attempts": 1}}

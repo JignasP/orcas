@@ -20,16 +20,20 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/retrieval/requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
 # Bake the embedding model into the image (no runtime download).
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 COPY services/ ./services/
+COPY libs/ ./libs/
+# The live scorer (python -m eval.live_scorer) reuses this image and its baked model.
+COPY eval/ ./eval/
 
 EXPOSE 8001
-# Readiness probe: /ready returns 503 until the index volume is populated by ingest, then 200.
+# Readiness probe: /ready returns 503 until the index volume is populated by ingest and the
+# embedding model has been warmed up at startup, then 200.
 # (/health is liveness and always 200 so the container is not killed while ingest runs.)
 HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=5 \
   CMD curl -fsS http://localhost:8001/ready || exit 1

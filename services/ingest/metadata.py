@@ -7,7 +7,7 @@ powers the retrieval entity_type/product_type filters and the framework scope ca
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from services.corpus_common.ids import chunk_id
 from services.corpus_common.store import ChunkRecord

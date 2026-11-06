@@ -246,7 +246,7 @@ class ResearcherGraph:
 
         pending_tool = {
             "tool_name": "search_corpus",
-            "args": {"query": query, "framework": framework, "k": 3},
+            "args": {"query": query, "framework": framework, "k": 5},
         }
         return {"budget": budget, "pending_tool_call": pending_tool}
 

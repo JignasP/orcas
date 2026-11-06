@@ -95,6 +95,22 @@ Then tell me and I'll compute SHA-256 + text-layer, fill `MANIFEST.yaml`, and ti
 - **Weak label flagged:** `mf_redemption_delay` fixture landed on a registrar-appointment clause (`p101w2`); fine as a real passage for FakeRetrievalClient, but re-pick before using as an eval label in Slice 5.
 - Build artifacts (`data/`) git-ignored — rebuilt by ingest, never committed.
 
+### 2026-11-03 — post-audit: incremental ingest, stable index_version, throughput metrics (T8)
+
+**What didn't work:** every ingest re-embedded all chunks and stamped `index_version` with the build
+time, so each `compose up` invalidated the retrieval and whole-run caches even when nothing changed;
+throughput was written to `index_info.json` but not exposed as a metric; `--reindex-if-changed` did
+nothing; `--re-embed` dropped each document's title/version/checksum from `index_info.json`.
+
+**Did:** embed only unseen chunk ids, refresh metadata on unchanged ones (same id = same text and
+model, so the vector stays), delete stale ones; `index_version = <tag>.<strategy>.<count>.<hash of
+chunk ids>`; retrieval `/metrics` gains `orcas_ingest_{chunks_per_second,pages_per_second,
+elapsed_seconds,embedded_chunks}` and `orcas_index_document_chunks{doc_id,version,sha256}`; removed
+the no-op flag; re-embed keeps document details.
+
+**Numbers (copy of the full index):** two consecutive ingests each embedded 0 of 637 chunks in 4.1 s
+(was ~19 s with embedding) and kept `index_version = minilm-l6-v2.clause.637.dd539860ac65`.
+
 ## Slice 2 — Evaluation 1 package + retrieval containerized (Days 9–13)
 
 ### 2026-10-13 — Eval-1 package + containerization
@@ -109,6 +125,18 @@ Then tell me and I'll compute SHA-256 + text-layer, fill `MANIFEST.yaml`, and ti
 - **Image NOT built here** — Docker daemon offline + only ~15 GiB free (a torch image is ~5-6 GB). Build on a Docker host / CI. Model-bake command itself is proven (same call works locally).
 
 **Handoff:** this satisfies the Day-12 "retrieval container with health + /metrics" handoff to Mitesh + Jignas (compose wiring is Jignas's).
+
+### 2026-11-03 — post-audit: `make test` from a fresh clone (T9)
+
+**What didn't work:** the root `requirements.txt` covered only retrieval/ingest/eval, so after
+`pip install -r requirements.txt` the agent and platform tests failed on import (`langgraph`,
+`celery`, `psycopg`, `redis`, `jsonschema`), and CI never ran `tests/retrieval` or `tests/eval`.
+
+**Did:** `requirements-dev.txt` (all service requirements + pytest + ruff), `make install-dev`;
+lint fixes in my directories (store.py import order, unused code in the chunking benchmark).
+**Checked from a fresh clone and a fresh venv:** install 1 m 50 s; `make test` before ingest 75
+passed / 20 skipped (index tests skip); `make ingest` 637 chunks; `make test` after 94 passed /
+1 skipped (Postgres), 0 failed.
 
 ## Slice 3 — Web client v0 (Days 11–14)
 
@@ -155,6 +183,15 @@ Honest finding (→ report "what didn't work"): fixed-window wins *raw* recall@k
 - Eval-1 package (merged) still cites the old naive ids `p1w0/p6w0`; live source of truth is now the clause index (`preamble`/`9`). Not rewriting the merged point-in-time doc; scenarios + fixtures are current.
 - `mf_redemption_delay` supporting passage still weak (clause `24-2#15`) — re-pick in Slice 5.
 - Segmentation is a heuristic (noisy titles on dense index pages) — documented in `chunking.md`.
+
+### 2026-11-03 — post-audit: retrieval through LangChain (T7)
+
+**What didn't work:** L1 requires LangChain or LlamaIndex for retrieval, and the README said
+LangChain was used, but no code imported it (only an unused `langchain-core` dependency in the
+worker). **Did:** `services/retrieval/langchain_retriever.py` — `MiniLMEmbeddings` (LangChain
+`Embeddings`) and `OrcasDenseRetriever` (LangChain `BaseRetriever` over Chroma); the service's dense
+path calls `invoke()`. Six reference queries returned identical chunk ids and scores before and
+after. Only `langchain-core` is added.
 
 ## Slice 5 — Evaluation harness + baseline numbers (Days 23–30)
 
@@ -209,16 +246,40 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 
 **Web client (A8 finished):** expandable citations (`<details>` → full `passage_text` when present, else quote), escalation path (reason_code + reason + partial findings), verification block (passed, claims supported/checked, attempts), timeline; **feedback buttons** 👍/👎 + optional reason → `POST /v1/runs/{id}/feedback`. Fake gateway gained the feedback endpoint (stores `_FEEDBACK`) and `passage_text` on the §4.1 RBI citations. Live-smoked: determination shows 2/3 citations with passage_text; feedback recorded.
 
+**2026-11-03 update (T5, post-audit):** escalations showed `[object Object]` (partial findings are
+objects); polling gave up at 60 s while a live model is slower; `passage_text` existed only in the
+fake gateway; no trace link. Now: findings render as document · clause · chunk; wait time is
+configurable (default 180 s); each citation is marked ✓/✗ for "retrieved in this run" with the
+retrieved text from `/v1/runs/{id}/trace`; degraded banner; trace link; split and §4.1-paraphrase
+presets. Fake gateway: pinned §4.1 passages, no `passage_text`, a trace endpoint. Checked end to
+end in jsdom against the fake gateway (presets, marks, banner, findings, failed run).
+
 **Retrieval hardening:**
 - `/health` → **liveness** (always 200, never flaps while ingest builds); `/ready` → **readiness** (200 only when index openable & non-empty, else 503). Dockerfile HEALTHCHECK → `/ready`.
 - Per-request **timeout** (`RETRIEVAL_TIMEOUT_S`, default 10s) via a ThreadPool future → **504** on overrun (`with_timeout` helper, unit-tested).
 - **Graceful empty-index:** search returns `count:0` (no crash), lookups 404, `/ready` 503 — tested on a fresh empty collection.
+
+**2026-11-03 update (T12, post-audit):** a search that timed out while still queued behind busy
+workers ran anyway once a worker freed up, for a caller that had already received a 504. It is now
+cancelled on timeout; a search that already started still finishes in the background (Python threads
+cannot be interrupted). Concurrency stays capped at `RETRIEVAL_WORKERS`.
 
 **Handoff:** `loadtest/payloads.json` — 22 valid `complaint.v1` bodies derived from scenarios, for Jignas's Locust. `loadtest/README.md` explains usage. (This is the Day-28 "final scenario payloads → Jignas" handoff.)
 
 **Tests:** +7 (web feedback + passage_text; `/health`/`/ready`, `with_timeout` 504, empty-index). **60 total pass.** Live smoke: retrieval /health 200 + /ready 200; web submit→feedback OK.
 
 **Demo readiness:** items #2 (valid request, citations resolve), #10 (§4.1 passages + routed answer) and the #5 answerable/unanswerable are all drivable from the client now.
+
+### 2026-11-03 — post-audit: warm the embedding model at startup (T12, pulled forward)
+
+**What didn't work:** `/ready` only checked the index, so Compose marked retrieval ready before the
+embedding model was loaded. The first search then loaded the model inside its 10 s request timeout.
+Measured on a laptop: the cold load takes about 10 s, and an eval run failed with a 504 on its first
+search. In a demo, that would be the first complaint.
+
+**Did:** retrieval warms the model in a background thread at startup; `/health` (liveness) stays 200
+and now reports `model_loaded` truthfully; `/ready` is 503 until the index is non-empty **and** the
+model is loaded. Real uvicorn check: `/ready` flipped to 200 at 10.3 s; first search 65 ms.
 
 ## Slice 8 — Report sections + freeze (Days 41–43)
 
@@ -235,6 +296,173 @@ groundedness 0.889→0.911 (+0.022), faithfulness 0.911→0.933 (+0.022), halluc
 ## Slice 9 — Rehearsal (Days 44–50)
 _No entries yet._
 
+## Post-audit improvements (docs/improvements/TAHIR.md)
+
+### 2026-11-03 — T1: evaluate the real system (AgentSUT)
+
+**What didn't work (found in the integration audit):** `make eval` had only ever scored the
+keyword `BaselineSUT`, never the shipped agent, so every published metric described a system
+that does not ship. "Mitesh's agent drops in later" never happened.
+
+**Did**
+- `eval/agent_sut.py`: runs `run_complaint_pipeline` with the real retrieval app (via
+  `HttpRetrievalClient`). Modes: in-process stub replies (default), live model via
+  `LLM_GATEWAY_URL`, or a running stack through the public API (`--via-gateway`).
+- Contexts = passages the run retrieved (its `tool_call` events); claims = sentences of a
+  completed determination's basis; escalations assert nothing.
+- `run_eval.py`: `--sut agent|baseline` (agent is default), `--llm`, `--via-gateway`, `--sleep`;
+  records models, prompt versions and index version; per-scenario table for Mitesh.
+- `make eval` = agent (stub), `make eval-live`, `make eval-baseline`.
+
+**Numbers — agent, stub mode (`eval/results/agent-stub.json`)**
+route 0.409 (9/22), regulator 0.273, entity 0.273, escalation P/R 0.353/0.857; 5 of 22 answered
+(groundedness 1.0, context relevance 0.36 over those 5). 11 `out_of_corpus` and 6 `unverified`
+escalations. These reflect the stub's keyword replies (Mitesh's M4), not model quality.
+
+**Open:** live-model results wait on a reachable model (Mitesh's M2 + Jignas's J3).
+
+### 2026-11-03 — T2: make the metrics mean something
+
+**What didn't work:** the baseline's claims were its routing sentence plus two sentences copied from
+the retrieved passages; copied sentences are supported by construction, so groundedness 0.911 was
+inflated. The scenarios' pinned supporting passages were never used. The live-scoring demo's
+feedback up-rate (0.727) came from a fixed pattern (`i % 4`), not users.
+
+**Did**
+- Claims come only from the answer's own text (baseline: its routing conclusion; agent: basis).
+- New label-based metrics over the 15 scenarios that pin a passage: supporting passage retrieved /
+  cited, using the pinned clause's chunk ids from the index (all 15 resolve, quotes verified).
+- Judge thresholds are written into every results file and printed with every table.
+- `evaluation.md` and `report-sections.md` rewritten with the agent numbers; Day-30 baseline and the
+  synthetic live-scoring numbers withdrawn; removed the claim that an LLM judge is used for L2.
+- Removed the stale `eval/results/latest.json` (old-claims baseline; still in git history).
+
+**Numbers**
+- Baseline with honest claims: groundedness 0.733 (was 0.911), faithfulness 0.800 (was 0.933),
+  supporting passage retrieved 0.333.
+- Agent, stub mode: supporting passage retrieved 0.000, cited 0.000. For §4.1 the agent's query
+  ranks RBI clause 10 ("Grounds for non-maintainability") 1st and the deciding clause 9 7th; the
+  agent searches with `k=5`, so it never sees clause 9 and cites clause 10. Retrieval-side follow-up:
+  the non-maintainability clause outranks the grounds clause for "deficiency in service" queries.
+
+### 2026-11-03 — T3: pre-registered agent experiments (L3, L2)
+
+**What didn't work:** the deliberate change (framework filter) and the "L2" comparison (dense vs
+hybrid) were run on the keyword baseline, and L2 asks for prompt variants, not retrieval modes.
+Re-checked hybrid against the pinned passages: dense and hybrid both find 5 of 15 in the top 5, so
+hybrid is not a useful deliberate change either.
+
+**Did**
+- `eval/experiments.yaml`: two experiments with change, hypothesis and primary metric committed
+  before any run — `l2-reflect-prompt` (reflect v1 vs v2, route accuracy) and
+  `l3-cite-by-evidence-number` (draft v1 vs v2, supporting passage cited).
+- `eval/experiment.py` rewritten: `run` evaluates each configuration in a fresh process with its env
+  overrides (so import-time reads apply) and compares; `compare` works on two results files. Reports
+  the four RAG metrics, label metrics, passage hits, LLM calls and a primary-metric verdict with a
+  noise flag. Refuses stub mode for experiments that need a live model; warns when an override had
+  no effect or the models differ.
+- `make experiment NAME=...`; the eval CLI now defaults service logs to WARNING.
+- Removed the withdrawn `eval/results/experiment.json`.
+
+**Plumbing check:** stub-mode run of `l2-reflect-prompt` gave identical results (70 LLM calls each)
+and the "override had no effect" warning, as expected before Mitesh's M13. Not committed.
+
+**Open:** both runs need a live model and M13 (L3 also needs M3).
+
+### 2026-11-03 — T4: one §4.1 reference answer, plus a regression test
+
+**What didn't work:** three different "reference answers" existed — Eval-1 §2 (naive IDs
+`p1w1/p1w0/p6w0`, gone since Slice 4), the fixtures/scenarios (SEBI `2`, RBI `preamble` + `9`), and
+the running system, which cites RBI clause 10 "Grounds for non-maintainability".
+
+**Did**
+- Addendum to `evaluation-1-package.md`: current index_version, pinned passages (chunk ids +
+  exact quotes, all `quote_span_found=true`), updated reference determination, "must not cite"
+  clause 10, and the demo #10 narration with live commands.
+- Checked fixtures: all 9 resolve against the current index with their quotes; the §4.1 fixture
+  matches the pinned answer.
+- `tests/eval/test_reference_case.py`: pinned passages resolve (catches re-ingest drift); §4.1 is
+  referred to RBI (passes now); cites preamble/9 and not 10 (strict xfail until M3/M4).
+
+**Found while testing:** a cold run failed with a retrieval 504 — the first search loaded the
+embedding model inside the 10 s request timeout. The eval harness now warms the model first. The
+same risk exists in Compose (`/ready` doesn't load the model), fixed in the next PR.
+
+**Numbers:** for the complaint text, unfiltered search ranks SEBI clause 3 first (0.61); RBI-filtered,
+neither the preamble nor clause 9 is in the top 5. A query using scope vocabulary ranks clause 10
+first (0.72) and clause 9 second (0.656).
+
+### 2026-11-03 — T6: live scoring on real runs (L6)
+
+**What didn't work:** `live_scorer.py` ran only in memory, seeded from the keyword baseline with
+synthetic feedback, and nothing in Compose ran it. Grafana's "Quality scores" showed only the
+worker's `verification_passed`, written for every run — not a sample scored against the metrics.
+
+**Did**
+- `eval/run_evidence.py`: claims and retrieved contexts from a run's determination and events,
+  shared by the agent evaluation and the live scorer so both judge runs the same way.
+- `eval/live_scorer.py` rewritten: reads completed runs from Postgres, samples by a stable hash
+  (`LIVE_SCORE_SAMPLE_RATE`, default 0.2), scores with the evaluation's judge (relevance against the
+  complaint text), writes groundedness / faithfulness / context relevance / hallucination rows to
+  `eval_scores` (`source=live_scorer`, judge + thresholds), skips already-scored runs and runs with
+  no retrieved passages. `--loop SECONDS` for a Compose service.
+- Retrieval image gains `psycopg` and `eval/`, so the `live-scorer` service reuses its baked model.
+
+**Checked** against a throwaway PostgreSQL 17: the new integration test and the platform's existing
+Postgres test pass. End to end: three completed agent runs persisted and scored (a run without
+retrieved passages skipped), a second pass scored nothing, the exporter published
+`orcas_eval_score{metric=...}`.
+
+**Open:** Jignas adds the `live-scorer` service to Compose (J3) and a quality-over-time panel (J9);
+`.env.example` still says `LIVE_SCORE_SAMPLE_RATE=0.1` — agree on 0.2.
+
+### 2026-11-03 — T10: scenario set fixes
+
+**What didn't work:** the mutual-fund scenarios pinned an amendment footnote about an *omitted*
+provision (flagged since Slice 1); injection scenarios expected an escalation although the gateway
+rejects them with 422; the set had no injections that get past the regex; labels never peer-reviewed.
+
+**Did**
+- Re-pinned both MF scenarios to Regulation 60A ("The asset management company shall redress investor
+  grievances promptly but not later than twenty-one calendar days…"), which the segmenter folded into
+  the chunk indexed as clause `60-2` (a segmentation imperfection, documented).
+- `expected_intake: rejected` on all injection scenarios; new intake metrics (gateway guardrail
+  rejection recall, false rejections); in-process runs still push injections through the agent.
+- Three new injection paraphrases from the audit (forget-everything-above, fake system note, JSON
+  field injection); one held out. 25 scenarios, 7 held out.
+- `docs/work/tahir/scenario-review.md`: every label with its passage and a sign-off box.
+
+**Numbers (agent, stub):** route 0.440 (11/25), supporting passage retrieved/cited 0.133 (the two MF
+runs now retrieve and cite Regulation 60A), intake rejection recall 0.400 (2/5; the paraphrases get
+past the regex — Jignas's J10), 0 false rejections. Baseline: route 0.880 (misses the paraphrases).
+
+**Open:** peer review of the labels by Mitesh or Jignas.
+
+### 2026-11-03 — T11: circular-level references and docs
+
+**What didn't work:** `circular_ref` fell back to the document title when the manifest had no
+`circular_no`, so RBI and MF Regulations citations carried no circular-level reference (F5).
+
+**Did**
+- Manifest: MF Regulations `circular_no` = "Gazette notification S.O. 856 (E), 9 December 1996" (PDF
+  page 7). The RBI scheme PDF prints no notification number anywhere (searched every page), so its
+  `circular_no` is the statutory basis from the preamble, with a note to copy the RBI notification
+  number from RBI's own notification if needed — never from memory. Each entry records its source.
+- Re-ingested a copy of the index: the pinned §4.1 and MF chunk ids are unchanged and now carry the
+  new references. (Local `data/` needs `make ingest`; Compose builds from the manifest.)
+- ARCHITECTURE §5: hybrid retrieval decided (off by default) with its numbers; report section A notes
+  the citation references; the Eval-1 addendum explains the content-based `index_version` (T8).
+
+### 2026-11-03 — T12 (rest): TruLens on agent outputs; D4 decision
+
+- `eval/trulens_eval.py` scored the keyword baseline's records; it now scores the agent's runs
+  (`--llm stub|gateway`), taking claims and contexts the same way as `make eval`. Stub mode: 6 answered
+  of 25; TruLens feedback groundedness 0.414, context relevance 0.257 (raw cosine, not thresholded, so
+  not comparable with the claim-level table).
+- Decided **not** to move the embedding model name into a Docker build argument this week: it would
+  make image builds depend on `.env` and a coordinated Compose change near the clean-clone gate.
+  Recorded as a known limitation in report section D.
+
 ---
 
 ## Benchmark & metric ledger (quick reference)
@@ -242,4 +470,6 @@ Keep the headline numbers here so they're easy to find at report time.
 
 | Date | What was measured | Setting | Number |
 |---|---|---|---|
-| | | | |
+| 2026-11-03 | Agent route accuracy (22 scenarios) | stub mode, in-process | 0.409 (9/22) |
+| 2026-11-03 | Agent route accuracy (25 scenarios) | stub mode, in-process | 0.440 (11/25) |
+| 2026-11-03 | Intake rejection recall (5 injections) | gateway regex | 0.400 (2/5) |

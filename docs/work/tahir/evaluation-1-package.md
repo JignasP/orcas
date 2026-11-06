@@ -108,3 +108,92 @@ python -m pytest tests/retrieval -q              # 18 passing (incl. §4.1 recal
 1. Confirm the real Evaluation 1 date (plan assumes ≤ Day 13).
 2. Agree the §4.1 reference answer above as the graded reference (clause ids/quotes are pinned from the downloaded documents, not memory).
 3. Timeline supersession (2022 vs SCORES 2.0) — acknowledged; handled at eval-labelling time.
+
+---
+
+## Addendum (2026-11-03): the current §4.1 reference answer
+
+Slice 4 replaced the naive positional chunks (`p1w1`, `p1w0`, `p6w0` in §2) with clause-aligned
+chunks, so those IDs no longer exist. **This addendum is the current reference answer**; §2 above is
+kept as the point-in-time Evaluation 1 record. The pinned passages are checked by
+`tests/eval/test_reference_case.py`, which fails if a re-ingest changes them.
+
+**Index:** 637 chunks, clause strategy. Since incremental ingest (T8, #24) `index_version` is derived from
+the chunk ids: `minilm-l6-v2.clause.637.dd539860ac65`. Builds before that used a timestamped string for the
+same chunks (`minilm-l6-v2.clause.20261013T074855Z.637`). The chunk ids below are content hashes and do not
+change either way.
+
+### Pinned passages
+
+| Role | Document | Clause | chunk_id | Exact quote |
+|---|---|---|---|---|
+| Apparent (SEBI scope) | `sebi_scores_master_circular` (`SEBI/HO/OIAE/IGRD/P/CIR/2022/0150`) | `2` | `d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e` | "registered intermediaries and recognised MIIs that such investor grievances may be resolved faster if these grievances are taken up directly with the entity concerned at the first instance" |
+| Deciding: who the RBI scheme covers | `rbi_integrated_ombudsman_scheme_2021` | `preamble` | `c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0` | "A Scheme for resolving customer grievances in relation to services provided by entities regulated by Reserve Bank of India" |
+| Deciding: ground of complaint | `rbi_integrated_ombudsman_scheme_2021` | `9` | `17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64` | "Any customer aggrieved by an act or omission of a Regulated Entity resulting in deficiency in service may file a complaint under the Scheme" |
+| **Must not be cited as the basis** | `rbi_integrated_ombudsman_scheme_2021` | `10` | `b4589d638e980d6df903edf684a3a7842dbacbca8bba6d8dd6fdf9788b1249d6` | "Grounds for non-maintainability of a Complaint": lists matters where a complaint does *not* lie |
+
+All three pinned quotes return `quote_span_found=true` from `GET /v1/chunks/{chunk_id}?quote_span=…`.
+
+### Reference determination (`determination.v1`)
+
+```json
+{
+  "status": "completed",
+  "route": "refer_to_other_regulator",
+  "regulator": "RBI",
+  "entity_type": "bank",
+  "timeline": null,
+  "basis": "The complaint concerns a fixed deposit opened through a bank, which is a banking product rather than a securities-market product. SEBI's SCORES mechanism is addressed to listed companies, registered intermediaries and recognised MIIs [c1]. The RBI Integrated Ombudsman Scheme covers services provided by entities regulated by the Reserve Bank [c2], and a customer aggrieved by a Regulated Entity's deficiency in service may complain under it [c3]. The complaint is therefore referred to the RBI Integrated Ombudsman Scheme.",
+  "citations": [
+    {"citation_id": "c1", "doc_id": "sebi_scores_master_circular", "clause": "2", "chunk_id": "d2d66258e59fc24f14530d30125912f54bd3c045f20e9a915253e947e682323e"},
+    {"citation_id": "c2", "doc_id": "rbi_integrated_ombudsman_scheme_2021", "clause": "preamble", "chunk_id": "c3cdfa20cf3464b2e00edbf53c1392dffdd8a237837b12f092cc4bdfa3bcc2b0"},
+    {"citation_id": "c3", "doc_id": "rbi_integrated_ombudsman_scheme_2021", "clause": "9", "chunk_id": "17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64"}
+  ],
+  "escalation": null,
+  "verification": {"passed": true},
+  "disposed": false
+}
+```
+
+The SEBI citation is optional (it explains why SEBI does not apply); the determination must cite
+the RBI preamble and/or clause 9, and must not cite clause 10 as its basis. Harness labels are
+unchanged: `refer_to_other_regulator`, `RBI`, `bank`, no escalation.
+
+### Status of the running system (stub mode)
+
+Routes to RBI correctly but cites **clause 10** with a quote that starts mid-word (`"mplaint (1) N o
+complaint for deficiency in service shall lie…"`), and never reaches SEBI first because
+classification already says RBI. Fixes are Mitesh's M3/M4/M5; `test_reference_case.py` holds the
+citation check as an expected failure until they land.
+
+### Demo #10 narration
+
+1. **What a single search returns.** Search the complaint text with no filter: the top hit is SEBI
+   SCORES clause 3 (filing complaints on SCORES, score 0.61). The complaint says "complain to SEBI"
+   and uses investment vocabulary, so a single embedding search lands on SEBI's framework.
+2. **What SEBI's framework actually covers.** SEBI-filtered, the scope passage is SCORES clause 2:
+   it is addressed to listed companies, registered intermediaries and recognised MIIs. A bank is
+   none of these, and a bank fixed deposit is not a securities product. (The SEBI scope card is a
+   finding aid that points to this clause; it is never cited.)
+3. **Why one search is not enough.** RBI-filtered, the complaint text alone does not surface the
+   deciding provisions: neither the preamble nor clause 9 is in the top 5. The deciding provision
+   uses words the complaint never uses. Searching again with vocabulary from the scope passages
+   ("services provided by entities regulated by the Reserve Bank", "deficiency in service") brings
+   up clause 9 (0.656), and the RBI scope card points to the preamble.
+4. **The decision.** The preamble says the scheme covers services of RBI-regulated entities (a
+   bank is one); clause 9 says a customer aggrieved by a Regulated Entity's deficiency in service
+   may complain (lower interest than promised is a service deficiency). So: refer to the RBI
+   Integrated Ombudsman Scheme.
+5. **The trap to point out.** For those same queries clause 10 ranks first (0.72), because it
+   repeats "deficiency in service" and "Regulated Entity". It lists where complaints do *not* lie,
+   so citing it as the basis for a referral contradicts the answer. The verifier must reject it.
+
+Commands to show the passages live (retrieval is published on port 8001):
+
+```bash
+curl -s localhost:8001/v1/search -H 'content-type: application/json' \
+  -d '{"query": "I invested in a fixed deposit through my bank'\''s app. The interest credited is lower than what I was promised. I want to complain to SEBI.", "k": 5}'
+curl -s localhost:8001/v1/search -H 'content-type: application/json' \
+  -d '{"query": "services provided by entities regulated by the Reserve Bank deficiency in service grounds of complaint", "k": 5, "filters": {"framework": "RBI"}}'
+curl -s "localhost:8001/v1/chunks/17192ff2b4575e221099d33358788a939ad2059d5b9617db56f157b82b726a64?quote_span=Any%20customer%20aggrieved"
+```

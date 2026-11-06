@@ -18,6 +18,10 @@ text-layer flag (all have a text layer; no OCR needed).
 | `rbi_integrated_ombudsman_scheme_2021` | Reserve Bank – Integrated Ombudsman Scheme, 2021 | RBI | base 2021 (12-Nov-2021) | 18 |
 | `sebi_scores_master_circular` | Master Circular on redressal of investor grievances through SCORES | SEBI | `…/CIR/2022/0150`, 07-Nov-2022 | 11 |
 
+- **Circular-level citations:** every chunk carries its document's reference from the manifest, copied from
+  the document itself: the SCORES master circular number (`SEBI/HO/OIAE/IGRD/P/CIR/2022/0150`), the MF
+  Regulations' Gazette notification (`S.O. 856 (E)`, 9 December 1996), and the RBI scheme's statutory basis
+  (the scheme PDF prints no notification number, so none is invented).
 - **F3 coverage confirmed:** the SCORES master circular covers listed companies, brokers, depository
   participants, mutual funds/AMCs, registrars/RTAs and depositories — one SEBI document covers the
   registrar/listed-company/depository categories; no extra source needed.
@@ -34,7 +38,8 @@ Clause-aligned segmentation is the production default: regex clause/`CHAPTER` de
 real `clause_id` + `heading_path`, preamble captured, long clauses split into `#k` sub-chunks, each
 tagged with inferred `entity_types`/`product_types`. Scope cards (one per framework) are finding aids
 that carry `source_clause_chunk_id` — **citations resolve to the source clause, never the card.**
-Retrieval: dense (MiniLM, cosine) with `framework`/`doc_id`/`chunk_type` filters pushed to Chroma and
+Retrieval is orchestrated with LangChain: a `BaseRetriever` over Chroma with a LangChain `Embeddings`
+wrapper for the local MiniLM model. Dense (cosine) search with `framework`/`doc_id`/`chunk_type` filters pushed to Chroma and
 `entity_type`/`product_type` post-filters; optional hybrid (dense+BM25, RRF); Redis-or-in-memory cache
 keyed by `(norm query, filters, mode, k, index_version)`.
 
@@ -53,40 +58,52 @@ needs. Hybrid showed no recall gain → off by default, available via `mode`.
 
 ## C. Evaluation (L3)
 
-- **22 synthetic scenarios** (`eval/scenarios.yaml`), full category coverage, **6 held out** from tuning.
-- **Judge:** deterministic embedding (NLI-substitute) judge (temperature-0, cached). LLM judge is
-  pluggable with the same interface; hygiene = temp 0, cached verdicts, 20% manual spot-check.
+- **25 synthetic scenarios** (`eval/scenarios.yaml`), full category coverage, **7 held out** from tuning;
+  15 pin a supporting passage (doc + clause + exact quote), all of which resolve in the index; the 5
+  prompt-injection scenarios are labelled for rejection at intake.
+- **System under test:** the shipped agent (`eval/agent_sut.py` runs the worker pipeline with the real
+  retrieval app). The keyword baseline (`eval/sut.py`) is kept as a reference only.
+- **Judge:** deterministic embedding (NLI-substitute) judge; thresholds support 0.45, relevance 0.32,
+  infer 0.40. No LLM judge is used.
 - **Metrics (exact computations in `evaluation.md`):** groundedness, context relevance, faithfulness,
-  hallucination rate (claim-level) + route/regulator/entity accuracy and escalation precision/recall.
+  hallucination rate (claim-level, claims = the answer's own sentences); route/regulator/entity accuracy
+  and escalation precision/recall; supporting passage retrieved / cited and intake rejection (label-based,
+  no judge).
 
-**Baseline (`make eval`):**
+**The agent, stub mode (`make eval`, 2026-11-03):**
 
-| metric | all (22) | held-out (6) |
+| metric | all (25) | held-out (7) |
 |---|---|---|
-| groundedness | 0.911 | 0.917 |
-| context_relevance | 0.907 | 1.000 |
-| faithfulness | 0.933 | 0.917 |
-| hallucination_rate | 0.267 | 0.250 |
-| route / regulator / entity acc | 1.0 | 1.0 |
-| escalation precision / recall | 1.0 / 1.0 | 1.0 / 1.0 |
+| answered | 6 | 2 |
+| groundedness / faithfulness | 1.000 / 1.000 | 1.000 / 1.000 |
+| context_relevance | 0.400 | 0.400 |
+| hallucination_rate | 0.000 | 0.000 |
+| route / regulator / entity acc | 0.440 / 0.240 / 0.240 | 0.571 / 0.143 / 0.286 |
+| escalation precision / recall | 0.421 / 0.800 | 0.600 / 1.000 |
+| supporting passage retrieved / cited | 0.133 / 0.133 | 0.250 / 0.250 |
+| intake rejection recall / false rejections | 0.400 / 0 | 0.500 / 0 |
 
-**Deliberate change — framework filter OFF → ON (same set, all four metrics):**
+Stub replies are canned, so these numbers describe the pipeline, not model quality. The judge scores the
+6 answers' single generic sentence as grounded; the label-based metrics show that only the two mutual-fund
+runs retrieved and cited their pinned passage (for §4.1, clause 10 "non-maintainability" ranks first for
+the agent's query and the deciding clause 9 seventh, below the agent's `k=5`). The gateway guardrail
+rejects 2 of the 5 injections. Live-model results follow once a model is reachable.
 
-| metric | before | after | delta |
-|---|---|---|---|
-| groundedness | 0.889 | 0.911 | +0.022 |
-| faithfulness | 0.911 | 0.933 | +0.022 |
-| hallucination_rate | 0.333 | 0.267 | −0.066 |
-| context_relevance | 0.973 | 0.907 | −0.066 |
+**Keyword baseline (reference only, `make eval-baseline`):** groundedness 0.722, context relevance 0.900,
+faithfulness 0.833, hallucination 0.278, supporting passage retrieved 0.333; label metrics 0.880 (it mirrors
+the label scheme but misses the three paraphrased injections).
 
-The "framework swap" (the mechanism that fixes §4.1) improves grounding and cuts hallucination at a small
-context-relevance cost — reported honestly, including the metric that regressed.
-
-- **Variant harness (L2):** runs ≥2 named configs; Mitesh's reflect-prompt variants plug in as configs.
+- **Deliberate change (L3) and prompt comparison (L2):** the earlier framework-filter and dense-vs-hybrid
+  comparisons ran on the keyword baseline, so they are withdrawn. Two agent experiments are pre-registered
+  in `eval/experiments.yaml` (hypothesis and primary metric committed before running): reflect prompt v1 vs
+  v2 (L2, route accuracy) and citing by evidence number vs copying chunk ids (L3, supporting passage cited).
+  They run with `python -m eval.experiment run <name>` once a live model and the prompt-version switch exist.
 - **Retrieval cache (D7):** warm p95 ≈ 0.1 ms vs cold ≈ 42 ms; `index_version` in the key invalidates
   stale entries on re-index.
-- **Live scoring (L6):** `eval/live_scorer.py` samples N% of completed runs, scores with the same metrics,
-  writes `eval_scores`; feedback aggregated alongside (in-memory seams → Jignas's Postgres).
+- **Live scoring (L6):** `eval/live_scorer.py` scores a deterministic sample (default 20%) of real completed
+  runs from Postgres with the evaluation's judge and evidence rules, writes groundedness, faithfulness,
+  context relevance and hallucination to `eval_scores`, and Grafana charts them over time via the
+  worker-metrics exporter; feedback is persisted and totalled alongside.
 
 ## D. What did not work (honest)
 
@@ -97,15 +114,27 @@ context-relevance cost — reported honestly, including the metric that regresse
   not chase that number; clause-aligned is the right choice for grounded citations.
 - **Hybrid retrieval gave no measurable recall gain** on this corpus, so it is off by default (not deleted
   — it stays available and is re-tested in Slice 5's set).
-- **Label metrics read 1.0 but are not independent** — the baseline SUT is a rule classifier that mirrors
-  the label scheme. The meaningful baseline signal is the RAG metrics; real label numbers require Mitesh's
-  agent as the SUT. Stated wherever the numbers appear.
+- **The first evaluation never scored the agent.** `make eval` ran only the keyword baseline, whose label
+  metrics are 1.0 by construction, and two of its three claims per answer were sentences copied from the
+  retrieved passages, so groundedness (0.911) was inflated. Found in the integration audit; the harness now
+  scores the agent and claims come from the answer's own text (the baseline drops to 0.733).
+- **The live-scoring demo used synthetic feedback** (an up-rate of 0.727 came from a fixed pattern, not
+  users); those numbers are withdrawn.
 - **No free LLM judge was wired** (no API key); the embedding/NLI judge stands in. Groundedness and
-  faithfulness are consequently highly correlated. 22 scenarios give wide confidence intervals.
-- **The mutual-fund servicing supporting passage is weak** — the MF Regulations don't expose a clean
-  "redemption/NAV grievance" clause to naive retrieval; flagged for a re-pick.
+  faithfulness are consequently highly correlated. 25 scenarios give wide confidence intervals.
+- **The mutual-fund supporting passage was a bad label** — it pinned an amendment footnote about an
+  omitted provision. Re-pinned to Regulation 60A (AMC must redress grievances within 21 days), which the
+  segmenter had folded into the chunk indexed as clause `60-2`.
 - **Segmentation is a regex heuristic**, not a legal parser — dense index pages produce some noisy clause
   titles; documented, not hidden.
+- **The embedding model's name is still in the repository** (Dockerfiles bake it at build time; code
+  defaults name it). Strict D4 would pass it as a build argument from `.env`, but that makes building the
+  images depend on `.env` and on a coordinated Compose change in the final week, a risk to the "starts from
+  a clean clone" gate. It is a free, local model that the brief itself suggests; the LLM provider's model
+  names are configuration only.
+- **TruLens is a secondary view.** It scores the agent's runs with the same embedding judge through TruLens
+  feedback primitives; its raw cosine scores are not comparable with the thresholded claim-level metrics,
+  which stay primary.
 - **The retrieval Docker image was not built in-repo** (Docker daemon offline, limited disk) — Dockerfiles
   and env wiring are validated; the image must be built on a Docker host / CI.
 
@@ -114,7 +143,7 @@ context-relevance cost — reported honestly, including the metric that regresse
 | DoD item | Status |
 |---|---|
 | Unit tests + recall checks | ✅ `make test` → 60 passed |
-| Metrics exposed | ✅ retrieval `/metrics` (`orcas_*`); `make eval` prints the four metrics + route accuracy |
+| Metrics exposed | ✅ retrieval `/metrics` (`orcas_*`); `make eval` scores the agent and prints the four metrics, label metrics and supporting-passage hits |
 | Running log kept | ✅ `notes_tahir.md` (per-slice) |
 | Reproducible with a single `make` target | ✅ `make ingest` / `make eval` / `make test` |
 

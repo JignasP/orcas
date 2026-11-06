@@ -1,10 +1,4 @@
-"""
-Persist retrieval calls as ordered run events (M12).
-
-Wraps any retrieval client (e.g. FakeRetrievalClient or real RetrievalClient)
-to record every call (search, get_clause, get_chunk, list_framework_scope) as
-a typed 'tool_call' event in the RunStore.
-"""
+"""Persist retrieval calls as ordered run events (M12)."""
 
 from __future__ import annotations
 
@@ -52,7 +46,7 @@ class ObservedRetrievalClient:
                             "doc_id": p.get("doc_id"),
                             "clause_id": p.get("clause_id"),
                             "quote_span": p.get("quote_span"),
-                            "text": p.get("text", "")[:400],
+                            "text": p.get("text", "")[:500],
                         }
                         for p in results
                     ],

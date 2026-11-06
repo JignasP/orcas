@@ -1,36 +1,40 @@
 """
 Worker pipeline orchestration for ORCAS.
 
-Changes vs previous version
------------------------------
-* ``LLMUnavailable`` from the researcher or verifier is caught and converted
-  to a ``degraded=True`` escalation rather than a bare ``failed`` run.
-  - Researcher failure → ``reason_code=agent_failure``
-  - Verifier failure  → ``reason_code=verification_unavailable``
-* The guardrail ``is_safe`` flag is now honoured: if ``is_safe=False`` the
-  filtered (escalated) determination is used but a ``guardrail`` event is
-  still emitted.
-* ``MAX_VERIFY_RETRIES`` is read from the environment.
-* ``failed`` status is now reserved for errors that happen *before* any agent
-  work starts (e.g. run-not-found).  Mid-run errors become ``escalated``.
+Combines:
+- Multi-agent coordination (Researcher + Independent Verifier)
+- Infrastructure resilience & fail-closed escalation (M1, M2)
+- Independent citation audit and ledger check (M6, M7)
+- OpenTelemetry tracing, correlation ID propagation, and run caching (Platform)
+- Output guardrail filtering and invariant enforcement (M9)
 """
 
+import logging
 import os
 import uuid
-import logging
 from typing import Any, Dict, Optional
 
+from opentelemetry import propagate, trace
+
+from libs.orcas_common.logging import configure_logging, correlation_id
+from libs.orcas_common.run_cache import RedisRunCache
+from libs.orcas_common.runstore import (
+    TERMINAL,
+    InMemoryRunStore,
+    PostgresRunStore,
+    RunStore,
+)
+from libs.orcas_common.telemetry import configure_tracing
 from services.worker.agent.researcher import ResearcherGraph
 from services.worker.agent.verifier import VerifierGraph
+from services.worker.clients.llm_client import LLMClient, LLMUnavailable
+from services.worker.clients.observed_retrieval import ObservedRetrievalClient
+from services.worker.clients.retrieval import HttpRetrievalClient
 from services.worker.guardrails.output_filter import OutputFilter
-from services.worker.clients.llm_client import LLMUnavailable
-from services.worker.clients.runstore import InMemoryRunStore
 
 logger = logging.getLogger("worker.tasks")
 
-# Celery app (Requirement A5 — task queue integration).
-# Import is optional so tests work without celery installed;
-# the Docker image installs it via requirements.txt.
+# Celery app (Requirement A5 — task queue integration)
 try:
     from celery import Celery
 
@@ -44,22 +48,48 @@ try:
     )
     celery_app.conf.task_acks_late = True
     celery_app.conf.task_default_queue = "orcas_tasks"
+    celery_app.conf.task_reject_on_worker_lost = True
+    celery_app.conf.worker_prefetch_multiplier = 1
+    celery_app.conf.broker_transport_options = {"visibility_timeout": 180}
     celery_app.conf.task_soft_time_limit = _CELERY_SOFT_LIMIT
     celery_app.conf.task_time_limit = _CELERY_HARD_LIMIT
+    configure_tracing("worker", instrument_httpx=True)
 
     @celery_app.task(name="orcas.run_complaint", bind=True, max_retries=0, acks_late=True)
-    def run_complaint(self, run_id: str, complaint_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def run_complaint(self, run_id: str) -> Dict[str, Any]:
         """Celery task entrypoint — delegates to run_complaint_pipeline."""
-        return run_complaint_pipeline(run_id=run_id, complaint_data=complaint_data)
+        configure_logging(os.getenv("LOG_LEVEL", "INFO"))
+        token = correlation_id.set(run_id)
+        try:
+            context = propagate.extract(self.request.headers or {})
+            with trace.get_tracer(__name__).start_as_current_span(
+                "worker.run_complaint", context=context
+            ):
+                return run_complaint_pipeline(run_id=run_id)
+        finally:
+            correlation_id.reset(token)
 
-except ImportError:
+except ImportError as exc:
+    if getattr(exc, "name", None) != "celery":
+        pass
     celery_app = None
     logger.info("Celery not installed; run_complaint_pipeline available as plain function.")
 
 
 global_run_store = InMemoryRunStore()
-
 _MAX_VERIFY_RETRIES = int(os.getenv("MAX_VERIFY_RETRIES", "2"))
+
+
+def _runtime_store() -> RunStore:
+    return PostgresRunStore() if os.getenv("DATABASE_URL") else global_run_store
+
+
+def _retrieval_client(run_id: str | None = None):
+    if os.getenv("RETRIEVAL_SERVICE_URL"):
+        return HttpRetrievalClient(run_id=run_id)
+    from services.worker.clients.fake_retrieval import FakeRetrievalClient
+
+    return FakeRetrievalClient()
 
 
 def _strip_internal(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -101,13 +131,13 @@ def _build_degraded_escalation(
         "degraded": True,
         "disposed": False,
     })
-    return {k: v for k, v in base.items() if not k.startswith("_")}
+    return _strip_internal(base)
 
 
 def run_complaint_pipeline(
     run_id: str,
     complaint_data: Optional[Dict[str, Any]] = None,
-    run_store: Optional[InMemoryRunStore] = None,
+    run_store: Optional[RunStore] = None,
     researcher_graph: Optional[ResearcherGraph] = None,
     verifier_graph: Optional[VerifierGraph] = None,
     inject_bad_draft: bool = False,
@@ -119,23 +149,50 @@ def run_complaint_pipeline(
     3. Independent Verifier audit & citation resolution.
     4. Guardrail output filtering.
     5. Event emission for full run reconstruction (Requirement D5).
-
-    ``LLMUnavailable`` from the researcher or verifier is caught and the run
-    is escalated with ``degraded=True`` instead of becoming ``failed``.
-    ``failed`` status is reserved for pre-work setup errors only.
     """
-    store = run_store or global_run_store
-    r_graph = researcher_graph or ResearcherGraph()
-    v_graph = verifier_graph or VerifierGraph(retrieval_client=r_graph.retrieval, llm_client=r_graph.llm)
+    store = run_store or _runtime_store()
+
+    def record_llm(agent, step, prompt_version, result, latency_ms):
+        usage = result.get("usage", {})
+        store.append_event(
+            run_id,
+            agent,
+            step,
+            "llm_call",
+            latency_ms=latency_ms,
+            payload={
+                "prompt_version": prompt_version,
+                "model": result.get("model"),
+                "degraded": result.get("degraded", False),
+            },
+            tokens={
+                "prompt": usage.get("prompt_tokens", 0),
+                "completion": usage.get("completion_tokens", 0),
+            },
+            cost_usd=float(usage.get("cost_usd", 0)),
+        )
+
+    retrieval = ObservedRetrievalClient(_retrieval_client(run_id), store, run_id)
+    r_graph = researcher_graph or ResearcherGraph(
+        retrieval_client=retrieval,
+        llm_client=LLMClient(run_id=run_id, on_call=record_llm),
+    )
+    v_graph = verifier_graph or VerifierGraph(
+        retrieval_client=r_graph.retrieval, llm_client=r_graph.llm
+    )
 
     record = store.get_run(run_id)
     if not record and complaint_data:
         record = store.create_run(run_id, complaint_data)
 
     if not record:
-        # Pre-work setup failure — the only legitimate ``failed`` case.
         store.fail(run_id, f"Run ID {run_id} not found in run store.")
         raise ValueError(f"Run ID {run_id} not found in run store.")
+
+    if record.get("status") in TERMINAL:
+        return record.get("result") or record
+    if hasattr(store, "claim_run") and not store.claim_run(run_id):
+        return store.get_run(run_id)
 
     store.update_status(run_id, "running")
     store.append_event(
@@ -146,7 +203,8 @@ def run_complaint_pipeline(
         payload={"complaint_id": run_id},
     )
 
-    complaint_payload = record.get("payload", {})
+    complaint_payload = dict(record.get("payload", {}))
+    cache_key = complaint_payload.pop("_cache_key", None)
     draft: Optional[Dict[str, Any]] = None
     partial_findings: list = []
 
@@ -162,7 +220,11 @@ def run_complaint_pipeline(
             agent="researcher",
             step="draft",
             kind="draft",
-            payload={"route": draft.get("route"), "basis": draft.get("basis"), "degraded": draft.get("degraded", False)},
+            payload={
+                "route": draft.get("route"),
+                "basis": draft.get("basis"),
+                "degraded": draft.get("degraded", False),
+            },
         )
 
     except LLMUnavailable as exc:
@@ -179,7 +241,12 @@ def run_complaint_pipeline(
             agent="system",
             step="error",
             kind="degraded",
-            payload={"reason_code": "agent_failure", "agent": exc.agent, "step": exc.step, "error": str(exc)},
+            payload={
+                "reason_code": "agent_failure",
+                "agent": exc.agent,
+                "step": exc.step,
+                "error": str(exc),
+            },
         )
         store.complete(run_id, escalation)
         store.append_event(
@@ -210,7 +277,6 @@ def run_complaint_pipeline(
     # ------------------------------------------------------------------ #
     # Phase 2 — Verifier                                                   #
     # ------------------------------------------------------------------ #
-    # Pass the full evidence ledger from the researcher to the verifier.
     evidence_ledger = draft.get("_evidence_ledger", draft.get("citations", []))
     max_attempts = _MAX_VERIFY_RETRIES
     attempt = 1
@@ -254,7 +320,12 @@ def run_complaint_pipeline(
             agent="system",
             step="error",
             kind="degraded",
-            payload={"reason_code": "verification_unavailable", "agent": exc.agent, "step": exc.step, "error": str(exc)},
+            payload={
+                "reason_code": "verification_unavailable",
+                "agent": exc.agent,
+                "step": exc.step,
+                "error": str(exc),
+            },
         )
         store.complete(run_id, escalation)
         store.append_event(
@@ -296,6 +367,7 @@ def run_complaint_pipeline(
     # ------------------------------------------------------------------ #
     is_safe, filtered_det, guardrail_msg = OutputFilter.filter(final_determination)
     filtered_det = _strip_internal(filtered_det)
+
     if guardrail_msg:
         store.append_event(
             run_id=run_id,
@@ -307,6 +379,28 @@ def run_complaint_pipeline(
 
     status = filtered_det.get("status", "completed")
     store.complete(run_id, filtered_det)
+
+    # Persist verification evaluation score
+    verification = filtered_det.get("verification") or {}
+    try:
+        if hasattr(store, "add_eval_score"):
+            store.add_eval_score(
+                run_id,
+                "verification_passed",
+                float(bool(verification.get("passed"))),
+                {"source": "worker_verifier"},
+            )
+    except Exception:
+        logger.exception("unable to persist verification score")
+
+    # Cache completed run in Redis if cache_key present
+    if cache_key and os.getenv("REDIS_URL") and status in {"completed", "escalated"}:
+        try:
+            ttl = int(os.getenv("RUN_CACHE_TTL_S", "3600"))
+            RedisRunCache(os.environ["REDIS_URL"], ttl).put(cache_key, filtered_det)
+        except Exception:
+            logger.exception("unable to cache completed run")
+
     store.append_event(
         run_id=run_id,
         agent="system",

@@ -1,47 +1,64 @@
 """
-ORCAS LLM Gateway — FastAPI service (M2, M10 updates).
+ORCAS LLM Gateway — FastAPI service (M2, M10 updates + tracing & correlation).
 
-Key changes vs previous version
----------------------------------
-* Stub is served **only** when ``ORCAS_STUB_MODE=true``.  An empty
-  ``LLM_API_KEY`` is valid (Ollama / keyless providers).
-* ``api_base`` is passed to ``litellm.acompletion`` for Ollama and custom
-  endpoints.
-* ``response_format={"type": "json_object"}`` is requested when supported.
-* Pricing uses env-driven ``calculate_cost(prompt_tokens, completion_tokens,
-  is_fallback=…)``; no model name in the code.
-* ``LLM_FORCE_FAIL=1`` makes all primary calls raise immediately — used by
-  Demo #8 to trip the circuit breaker.
-* When all retries fail and no fallback model is configured, the gateway
-  returns HTTP 503 instead of the stub answer.
-* ``/health`` reports a configuration error when ``LLM_MODEL`` is not set.
+Key changes:
+- Stub is served only when ORCAS_STUB_MODE=true. An empty LLM_API_KEY is valid (Ollama).
+- api_base is passed to litellm.acompletion for Ollama and custom endpoints.
+- response_format={"type": "json_object"} is requested when supported.
+- Pricing uses env-driven calculate_cost(); no model name hard-coded.
+- LLM_FORCE_FAIL=1 makes all primary calls raise immediately for Demo #8.
+- Preserves OpenTelemetry tracing and X-Correlation-ID request middleware.
 """
 
 import asyncio
-import random
+import logging
 import os
+import random
 import time
 import uuid
-import logging
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 import httpx
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
 
-from services.llm_gateway.config import config
+from libs.orcas_common.logging import configure_logging, correlation_id
+from libs.orcas_common.telemetry import configure_tracing
 from services.llm_gateway.accounting import calculate_cost
 from services.llm_gateway.breaker import CircuitBreaker
+from services.llm_gateway.config import config
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+configure_logging(os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("llm_gateway")
 
 app = FastAPI(title="ORCAS LLM Gateway", version="2.0.0")
+configure_tracing("llm-gateway", app=app, instrument_httpx=True)
+
+
+@app.middleware("http")
+async def correlate_request(request: Request, call_next):
+    candidate = request.headers.get("X-Correlation-ID", "")
+    value = candidate if 0 < len(candidate) <= 128 and candidate.isprintable() else str(uuid.uuid4())
+    token = correlation_id.set(value)
+    try:
+        response = await call_next(request)
+        response.headers.setdefault("X-Correlation-ID", value)
+        return response
+    finally:
+        correlation_id.reset(token)
+
+
 breaker = CircuitBreaker()
 
 # Prometheus metrics (Requirement A6 — per-agent metrics)
 try:
-    from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import (
+        CONTENT_TYPE_LATEST,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
+    )
     from starlette.responses import Response
 
     LLM_REQUEST_COUNTER = Counter(
@@ -59,20 +76,20 @@ try:
         "Total tokens consumed",
         ["agent", "model", "direction"],
     )
-    # Counts closed→open transitions (trips), not rejected requests.
     CIRCUIT_BREAKER_TRIPS = Counter(
         "orcas_circuit_breaker_trips_total",
         "Times the circuit breaker transitioned from closed to open",
     )
-    # Separate counter for requests rejected while breaker is open.
     CIRCUIT_BREAKER_REJECTED = Counter(
         "orcas_circuit_breaker_rejected_total",
         "Requests rejected because the circuit breaker was open",
     )
+    BREAKER_OPEN = Gauge("orcas_llm_breaker_open", "Whether the LLM breaker is open")
     PROM_AVAILABLE = True
 
     @app.get("/metrics")
     async def metrics():
+        BREAKER_OPEN.set(1 if breaker.get_state()[0] == "open" else 0)
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 except ImportError:
@@ -163,12 +180,14 @@ async def call_stub(request: ChatRequest) -> ChatResponse:
     """Forward request to the stub service (ORCAS_STUB_MODE=true only)."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
+            headers = {"X-Correlation-ID": request.run_id} if request.run_id else {}
             resp = await client.post(
-                f"{config.STUB_SERVICE_URL}/v1/chat", json=request.model_dump()
+                f"{config.STUB_SERVICE_URL}/v1/chat",
+                json=request.model_dump(),
+                headers=headers,
             )
             if resp.status_code == 200:
                 data = resp.json()
-                # Stub is the intended path in stub mode → degraded=false
                 result = ChatResponse(**data)
                 result.degraded = False
                 return result
@@ -205,7 +224,6 @@ async def _litellm_call(
     if api_base:
         kwargs["api_base"] = api_base
 
-    # Request structured JSON output where the provider supports it
     kwargs["response_format"] = {"type": "json_object"}
 
     response = await asyncio.wait_for(
@@ -250,7 +268,13 @@ async def chat_completion(request: ChatRequest):
     # --- Stub mode (explicit, never a silent fallback) ---
     if config.ORCAS_STUB_MODE:
         logger.info("ORCAS_STUB_MODE=true; routing to stub service.")
-        return await call_stub(request)
+        res = await call_stub(request)
+        if PROM_AVAILABLE:
+            LLM_REQUEST_COUNTER.labels(agent=agent_label, model=res.model, status="stub").inc()
+            LLM_LATENCY_HISTOGRAM.labels(agent=agent_label, model=res.model).observe(time.time() - t0)
+            LLM_TOKEN_COUNTER.labels(agent=agent_label, model=res.model, direction="prompt").inc(res.usage.prompt_tokens)
+            LLM_TOKEN_COUNTER.labels(agent=agent_label, model=res.model, direction="completion").inc(res.usage.completion_tokens)
+        return res
 
     # --- Configuration guard ---
     if not config.is_configured:
@@ -265,7 +289,6 @@ async def chat_completion(request: ChatRequest):
             CIRCUIT_BREAKER_REJECTED.inc()
             LLM_REQUEST_COUNTER.labels(agent=agent_label, model="breaker_open", status="rejected").inc()
         logger.warning("Circuit breaker OPEN — trying fallback model.")
-        # Try fallback rather than returning the stub
         if config.LLM_FALLBACK_MODEL:
             try:
                 res = await _litellm_call(
@@ -276,6 +299,8 @@ async def chat_completion(request: ChatRequest):
                     api_base=config.LLM_FALLBACK_API_BASE,
                     is_fallback=True,
                 )
+                if PROM_AVAILABLE:
+                    LLM_LATENCY_HISTOGRAM.labels(agent=agent_label, model=res.model).observe(time.time() - t0)
                 return res
             except Exception as fb_exc:
                 logger.error("Fallback model also failed while breaker open: %s", fb_exc)
@@ -288,7 +313,6 @@ async def chat_completion(request: ChatRequest):
     last_exc: Optional[Exception] = None
 
     for attempt in range(max_retries + 1):
-        # --- Force-fail switch (Demo #8) ---
         if config.LLM_FORCE_FAIL:
             last_exc = RuntimeError("LLM_FORCE_FAIL=1: primary call intentionally failed.")
             logger.warning("LLM_FORCE_FAIL active; skipping real call (attempt %d).", attempt + 1)
@@ -350,11 +374,12 @@ async def chat_completion(request: ChatRequest):
                 api_base=config.LLM_FALLBACK_API_BASE,
                 is_fallback=True,
             )
+            if PROM_AVAILABLE:
+                LLM_LATENCY_HISTOGRAM.labels(agent=agent_label, model=res.model).observe(time.time() - t0)
             return res
         except Exception as fb_exc:
             logger.error("Fallback model failed: %s", fb_exc)
 
-    # Neither primary nor fallback succeeded — return 503, never stub
     raise HTTPException(
         status_code=503,
         detail=f"All LLM retries and fallback exhausted. Last error: {last_exc}",

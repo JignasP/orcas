@@ -1,0 +1,9 @@
+# Everything `make test` needs: each service's runtime dependencies plus the test and lint tools.
+# From a fresh clone:  make install-dev   (or: python -m pip install -r requirements-dev.txt)
+# The LLM gateway's provider client is not needed: the tests never call a provider.
+-r requirements.txt
+-r services/gateway/requirements.txt
+-r services/worker/requirements.txt
+-r services/metrics_exporter/requirements.txt
+pytest>=8.0
+ruff>=0.6

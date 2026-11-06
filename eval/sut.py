@@ -15,7 +15,7 @@ from typing import List
 from services.retrieval.models import SearchFilters, SearchMode, SearchRequest
 from services.retrieval.service import Retriever
 
-from .metrics import EvalResult, split_claims
+from .metrics import EvalResult
 
 _INJECTION = ["ignore all previous", "ignore previous instruction", "you are now",
               "unrestricted assistant", "disregard", "award compensation", "approve my claim"]
@@ -77,20 +77,21 @@ class BaselineSUT:
         text = scenario["complaint_text"]
         route, regulator, entity, escalated = classify(text)
         contexts: List[str] = []
+        retrieved: List[str] = []
         claims: List[str] = []
         if not escalated:
             filters = SearchFilters(framework=regulator) if self.use_framework_filter else None
             resp = self.r.search(SearchRequest(
                 query=text, k=self.k, mode=self.mode, filters=filters))
             contexts = [p.text for p in resp.results]
-            route_claim = (f"The complaint is routed as {route} to {regulator} as a "
-                           f"{entity} matter.")
-            evidence = [split_claims(c)[0] for c in contexts[:2] if split_claims(c)]
-            claims = [route_claim] + evidence
+            retrieved = [p.chunk_id for p in resp.results]
+            # The answer's only own claim is its routing conclusion. Sentences lifted from the
+            # retrieved passages are not claims: they are supported by construction.
+            claims = [f"The complaint is routed as {route} to {regulator} as a {entity} matter."]
         return EvalResult(
             scenario_id=scenario["id"], question=text, held_out=bool(scenario.get("held_out")),
             route=route, regulator=regulator, entity_type=entity, escalated=escalated,
-            contexts=contexts, claims=claims,
+            contexts=contexts, claims=claims, retrieved_chunk_ids=retrieved,
             expected_route=scenario["expected_route"],
             expected_regulator=scenario["expected_regulator"],
             expected_entity_type=scenario["expected_entity_type"],

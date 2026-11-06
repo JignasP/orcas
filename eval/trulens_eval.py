@@ -1,16 +1,17 @@
 """TruLens integration (L3).
 
-ORCAS's primary metrics are the custom claim-level ones in metrics.py (as the README states:
-"TruLens + custom claim-level hallucination metric"). This module wires the same signals
-through TruLens feedback-function primitives: a custom feedback **Provider** backed by the
-deterministic embedding judge, TruLens ``Feedback`` objects, and a persisted ``TruSession``.
-Full app-level record instrumentation attaches once Mitesh's agent is the system-under-test;
-here we evaluate the baseline SUT's records.
+ORCAS's primary metrics are the claim-level ones in metrics.py. This module computes groundedness
+and context relevance for the same agent outputs through TruLens feedback-function primitives: a
+custom feedback **Provider** backed by the deterministic embedding judge, TruLens ``Feedback``
+objects, and a persisted ``TruSession``. Claims and contexts come from the shipped agent's runs
+(eval/agent_sut.py), exactly as `make eval` takes them.
 
-Run:  python -m eval.trulens_eval       (no-op with a message if trulens is not installed)
+Run:  python -m eval.trulens_eval [--llm gateway]   (no-op with a message if trulens is not installed)
 """
 from __future__ import annotations
 
+import argparse
+import os
 from typing import List
 
 import yaml
@@ -19,7 +20,6 @@ from services.corpus_common.constants import repo_root
 
 from .judge import _cos
 from .metrics import EvalResult
-from .sut import BaselineSUT
 
 SCEN = repo_root() / "eval" / "scenarios.yaml"
 
@@ -61,6 +61,9 @@ def available() -> bool:
 
 
 def run(argv=None) -> int:
+    parser = argparse.ArgumentParser(prog="orcas-trulens", description="TruLens feedback on agent runs")
+    parser.add_argument("--llm", choices=["stub", "gateway"], default="stub")
+    args = parser.parse_args(argv)
     if not available():
         print("trulens is not installed — skipping (native metrics via `make eval`).")
         return 0
@@ -72,9 +75,13 @@ def run(argv=None) -> int:
     fb_ground = Feedback(prov.groundedness, name="groundedness")
     fb_ctx = Feedback(prov.context_relevance, name="context_relevance")
 
+    from .agent_sut import AgentSUT
+
+    os.environ.setdefault("LOG_LEVEL", "WARNING")
     scenarios = yaml.safe_load(SCEN.read_text())["scenarios"]
-    sut = BaselineSUT()
-    results: List[EvalResult] = [sut.run(s) for s in scenarios if not s.get("expected_escalation")]
+    sut = AgentSUT(llm=args.llm)
+    # escalations assert nothing, so only answered runs have claims to judge
+    results: List[EvalResult] = [r for r in (sut.run(s) for s in scenarios) if r.claims]
 
     g_scores, c_scores = [], []
     for r in results:
@@ -85,6 +92,7 @@ def run(argv=None) -> int:
     gm = round(sum(g_scores) / len(g_scores), 3) if g_scores else None
     cm = round(sum(c_scores) / len(c_scores), 3) if c_scores else None
     print("TruLens integration OK:")
+    print(f"  system    : {sut.name}; {len(results)} answered of {len(scenarios)} scenarios")
     print(f"  session   : {session.connector.db.engine.url}")
     print(f"  provider  : {type(prov).__name__} (embedding judge)")
     print(f"  feedbacks : {fb_ground.name}, {fb_ctx.name}")

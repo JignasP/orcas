@@ -1,6 +1,8 @@
 # ORCAS Architecture
 
-Status: design baseline (Day 0). Anything marked **[TBD]** is decided by the owner on the named day and recorded as an ADR in `docs/decisions/`.
+Status: implementation in progress. The deployment and measurement claims below
+are verified only when exercised on a Docker host; local unit and database tests
+do not establish end-to-end availability or the load target.
 
 ## 1. Goals that drive the architecture
 
@@ -33,7 +35,7 @@ flowchart LR
     W -->|"search / clause / chunk"| RS["retrieval<br/>FastAPI + Chroma"]
     W -->|"chat"| LG["llm-gateway<br/>breaker, backoff, cost"]
     LG -->|"profile: live"| PROV["Free-tier LLM provider"]
-    LG -->|"profile: stub"| STUB["llm-stub<br/>fixed reply + delay"]
+    LG -->|"stub mode"| STUB["llm-stub<br/>fixed reply + delay"]
     LG --> Q
 
     ING["ingest<br/>one-shot, idempotent CLI"] --> CH[("chroma volume")]
@@ -44,13 +46,15 @@ flowchart LR
         OT["otel-collector"] --> J["jaeger"]
         P["prometheus"] --> G["grafana"]
         CA["cadvisor"] --> P
+        WM["worker-metrics"] --> P
     end
     GW -.-> OT
     W -.-> OT
     RS -.-> OT
     LG -.-> OT
     P -.->|"scrape /metrics"| GW
-    P -.-> W
+    WM -.-> PG
+    WM -.-> Q
     P -.-> RS
     P -.-> LG
 ```
@@ -69,7 +73,14 @@ A deployment boundary is the unit that is built, scaled, restarted and released 
 | **ingest** | *Lifecycle.* Batch job, not a server. Runs at start and on demand; idempotent. |
 | **web** | *Independent release.* Static client; no business logic. |
 | **redis / postgres** | *State separation.* Redis = ephemeral (queue, cache, rate limit, breaker). Postgres = durable (runs, events, quarantine, feedback). |
+| **worker-metrics** | *Read-only metrics adapter.* Queries persisted events and queue depth for run KPIs without embedding an HTTP server in every Celery process. |
 | **prometheus / grafana / otel-collector / jaeger / cadvisor** | *Observability plane*, separate from the data plane so monitoring survives application failure. |
+
+The gateway validates before creating a run or queue message. Redis uses
+separate databases for cache/rate limit, Celery broker, and Celery results.
+The worker has no fixed host port, so `docker compose up --scale worker=3`
+can start additional replicas. Prompt files are copied into the gateway
+image solely to version cache keys; the worker retains the execution copy.
 
 Rejected: a single "agent + retrieval" container (shares one deployment boundary regardless of code separation, so retrieval memory would be duplicated on every scaled worker); a worker-embedded breaker (see above).
 
@@ -187,7 +198,10 @@ Why this addresses the corpus difficulty (frameworks list what they cover, not w
 - **Clause-aligned chunks with heading-path metadata** keep a clause together with its governing heading, so "covers: banks, NBFCs, …" is retrievable as one unit.
 - **`framework` filter on search** lets the agent deliberately query the *other* regulator.
 - **Scope cards** are derived summaries of coverage clauses that give the agent an entry point when the complaint's vocabulary does not match the framework's. Rule: a scope card is a *finding aid*, not evidence. Citations must resolve to the **source clause chunk**, never to the summary.
-- **Hybrid retrieval (dense + BM25)** [TBD by Tahir after a quick A/B on the eval set].
+- **Hybrid retrieval (dense + BM25, reciprocal-rank fusion)** was A/B-tested and is **off by default**: on six
+  framework-filtered probes clause/dense and clause/hybrid both reached recall@5 0.833, and on the evaluation
+  set dense and hybrid each found 5 of the 15 pinned supporting passages in the top 5. It stays available as
+  `mode=hybrid`. Details: `docs/work/tahir/chunking.md`.
 - **Idempotency**: chunk IDs are content hashes, so re-running never duplicates. Re-embedding replaces vectors for one `model_tag` by id; no full rebuild.
 - **Freshness**: `index_info` records build time, document versions, chunk counts and model tag; exposed as metrics and in every determination as `index_version`.
 

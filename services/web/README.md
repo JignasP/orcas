@@ -15,12 +15,14 @@ determination (route, regulator, entity, basis, citations, escalation, verificat
 uvicorn services.web.fake_gateway:app --port 8000
 # open http://localhost:8000  (leave "Gateway base URL" blank = same origin)
 ```
-Presets: #10 §4.1 bank FD → RBI (with the real pinned citations), MF redemption → SEBI,
-insurance → escalate (out of corpus).
+Presets: #10 §4.1 bank FD → RBI (with the pinned reference passages), a §4.1 paraphrase, MF
+redemption → SEBI, broker and bank charges → escalate (two regulators, F7), insurance → escalate
+(out of corpus).
 
 ## Run against the real gateway (compose / Day-14 skeleton)
-Serve the static files (nginx image below) and set the **Gateway base URL** field to the
-published gateway, e.g. `http://localhost:8000`. (Cross-origin calls need CORS on the gateway.)
+Serve the static files with the Compose stack. On port 8080, the client defaults
+to `http://localhost:8000`; the Gateway base URL field can override it. The
+gateway allows the web origin through CORS.
 ```bash
 docker build -f services/web/Dockerfile -t orcas-web .
 docker run --rm -p 8080:80 orcas-web
@@ -28,11 +30,17 @@ docker run --rm -p 8080:80 orcas-web
 
 ## Contract consumed
 `POST /v1/complaints -> {run_id, status_url}`; `GET /v1/runs/{id} -> run_status.v1`
-(`result` is a `determination.v1` when terminal); `POST /v1/runs/{id}/feedback {rating, reason}`.
-Built from the documented contract until Jignas commits the gateway schemas.
+(`result` is a `determination.v1` when terminal); `GET /v1/runs/{id}/trace -> {events}` (the passages
+each run retrieved); `POST /v1/runs/{id}/feedback {rating, reason}`. The fake gateway implements the
+same four endpoints.
 
-## Rendered (Slice 7)
-Route/regulator/entity/timeline, basis, **expandable citations** (`<details>` revealing the full
-passage text when present, else the quote), **escalation path + reason + partial findings**,
-**verification outcome** (passed, claims supported/checked, attempts), and **feedback buttons**
-(👍/👎 + optional reason → `POST /v1/runs/{id}/feedback`).
+## Rendered
+- Route/regulator/entity/timeline and basis; a **degraded banner** when a fallback path was used.
+- **Citations** with the quote, a mark showing whether the cited chunk is among the passages *this
+  run retrieved* (from its trace: ✓ / ✗), and the retrieved passage text in an expandable section.
+  This is what demo #2 ("citations resolve to retrieved text") needs to show.
+- **Escalation path**: reason code, reason and partial findings (document · clause · chunk).
+- **Verification outcome** (passed, claims supported/checked, attempts), a **View run trace** link
+  (demo #3), and **feedback buttons** (👍/👎 + optional reason).
+- The client waits up to the "Wait for a result" time (default 180 s; a live model is slower than the
+  stub). A run that ends without a determination shows that, with the trace link.

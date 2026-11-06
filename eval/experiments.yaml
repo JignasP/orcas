@@ -1,0 +1,41 @@
+# Pre-registered agent experiments (T3).
+#
+# Each experiment states its change, hypothesis and primary metric BEFORE it is run; git history
+# is the evidence of the order (as with docs/slo.md). `python -m eval.experiment run <name>` runs
+# both configurations on the same 25 scenarios with the same model and writes
+# eval/results/exp-<name>.json. Do not edit a hypothesis after results exist; add a new experiment.
+#
+# Budget: one configuration is 25 scenarios x roughly 4-11 LLM calls, so one experiment is about
+# 200-550 calls. Check the hosted free tier's daily quota first; if it does not fit, point
+# LLM_GATEWAY_URL at an Ollama-backed gateway and say so in the report.
+
+experiments:
+  l2-reflect-prompt:
+    requirement: L2
+    change: Researcher reflect prompt v1 (sufficiency check only) vs v2 (explicit modifier and exclusion hunt)
+    hypothesis: >
+      v2 asks the reflect step to name the product and entity the complaint describes and to look
+      for provisions that redirect jurisdiction. It should send the Researcher to the other
+      regulator's framework when the complaint names the wrong one, raising route accuracy on the
+      §4.1 and RBI payment cases, without lowering escalation recall.
+    primary_metric: route_accuracy
+    needs_live_model: true  # stub replies do not depend on prompt wording
+    needs: [M13 prompt-version switch]
+    configs:
+      before: {PROMPT_RESEARCHER_REFLECT: v1}
+      after: {PROMPT_RESEARCHER_REFLECT: v2}
+
+  l3-cite-by-evidence-number:
+    requirement: L3
+    change: Draft prompt v1 (copy chunk ids and quotes from a JSON ledger) vs v2 (cite numbered evidence; code maps it to chunks)
+    hypothesis: >
+      Small and free-tier models often mis-copy 64-character chunk ids and exact quotes, and each
+      miss becomes an `unverified` escalation. Citing by evidence number should raise the share of
+      scenarios that cite their pinned supporting passage and the number answered, and lower the
+      hallucination rate; groundedness and faithfulness should not fall.
+    primary_metric: supporting_passage_cited
+    needs_live_model: true
+    needs: [M3 draft prompt v2, M13 prompt-version switch]
+    configs:
+      before: {PROMPT_RESEARCHER_DRAFT: v1}
+      after: {PROMPT_RESEARCHER_DRAFT: v2}

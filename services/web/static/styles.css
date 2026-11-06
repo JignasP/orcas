@@ -42,3 +42,10 @@ details.citation summary { cursor: pointer; font-weight: 600; }
 .feedback input { width: auto; flex: 1; min-width: 160px; }
 code { background: #eef0f3; padding: .05rem .3rem; border-radius: 4px; font-size: .85em; }
 .err { color: #842029; font-weight: 600; }
+.banner { padding: .6rem .8rem; border-radius: 6px; margin: .5rem 0 .75rem; }
+.banner.warn { background: #fff3cd; border: 1px solid #f0c36d; color: #5c4400; }
+.retrieved { font-size: .75rem; font-weight: 600; margin-left: .35rem; }
+.retrieved.ok { color: #0d6b2b; }
+.retrieved.bad { color: #842029; }
+ul.findings { margin: .25rem 0 0 1.1rem; padding: 0; font-size: .85rem; }
+.meta a { color: #1565c0; }
