@@ -1,26 +1,38 @@
-from typing import Dict, Tuple
+"""
+LLM cost accounting — equivalent list price calculation (M2).
 
-# Pricing per million tokens (input_cost, output_cost)
-MODEL_PRICING: Dict[str, Tuple[float, float]] = {
-    "gemini/gemini-1.5-flash": (0.075, 0.30),
-    "gemini-1.5-flash": (0.075, 0.30),
-    "gemini/gemini-1.5-pro": (3.50, 10.50),
-    "gemini-1.5-pro": (3.50, 10.50),
-    "openai/gpt-4o-mini": (0.15, 0.60),
-    "gpt-4o-mini": (0.15, 0.60),
-    "openai/gpt-4o": (2.50, 10.00),
-    "gpt-4o": (2.50, 10.00),
-    "groq/llama-3.1-8b-instant": (0.05, 0.08),
-    "llama-3.1-8b-instant": (0.05, 0.08),
-    "llm-stub": (0.0, 0.0),
-}
+Pricing is now read from the ``GatewayConfig`` env variables rather than
+hard-coding model names.  The function accepts an optional ``is_fallback``
+flag to use the fallback pricing tier.
 
-DEFAULT_PRICING = (0.10, 0.30)
+The result is labelled "equivalent list price" because the free tier billed $0.
+"""
+
+from services.llm_gateway.config import config
 
 
-def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """Calculate USD cost for a given model and token usage."""
-    pricing = MODEL_PRICING.get(model, DEFAULT_PRICING)
-    input_price_per_m, output_price_per_m = pricing
-    cost = (prompt_tokens / 1_000_000.0) * input_price_per_m + (completion_tokens / 1_000_000.0) * output_price_per_m
+def calculate_cost(
+    prompt_tokens: int,
+    completion_tokens: int,
+    is_fallback: bool = False,
+) -> float:
+    """
+    Calculate USD cost for a given token usage.
+
+    Uses ``LLM_PRICE_INPUT_PER_M`` / ``LLM_PRICE_OUTPUT_PER_M`` for the
+    primary model, and their fallback equivalents when ``is_fallback=True``.
+    Both default to 0 if not set, so the system functions without pricing.
+
+    Returns the equivalent list price rounded to 7 decimal places.
+    """
+    if is_fallback:
+        input_per_m = config.LLM_FALLBACK_PRICE_INPUT_PER_M
+        output_per_m = config.LLM_FALLBACK_PRICE_OUTPUT_PER_M
+    else:
+        input_per_m = config.LLM_PRICE_INPUT_PER_M
+        output_per_m = config.LLM_PRICE_OUTPUT_PER_M
+
+    cost = (prompt_tokens / 1_000_000.0) * input_per_m + (
+        completion_tokens / 1_000_000.0
+    ) * output_per_m
     return round(cost, 7)
