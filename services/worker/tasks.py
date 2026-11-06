@@ -11,7 +11,6 @@ Combines:
 
 import logging
 import os
-import uuid
 from typing import Any, Dict, Optional
 
 from opentelemetry import propagate, trace
