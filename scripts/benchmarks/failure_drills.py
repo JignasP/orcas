@@ -52,13 +52,17 @@ def submit(client_id):
 
 def poll(run_id, timeout=180):
     deadline = time.monotonic() + timeout
+    last_status = None
     while time.monotonic() < deadline:
         status, body = request("GET", f"/v1/runs/{run_id}")
         assert status == 200, (status, body)
+        last_status = body["status"]
         if body["status"] in TERMINAL:
             return body
         time.sleep(2)
-    raise TimeoutError(f"run {run_id} stayed nonterminal for {timeout} seconds")
+    raise TimeoutError(
+        f"run {run_id} stayed {last_status} for {timeout} seconds"
+    )
 
 
 def wait_retrieval(timeout=90):
@@ -130,8 +134,10 @@ def retrieval_drill():
     compose("stop", "retrieval")
     try:
         run_id = submit("drill-retrieval")
-        outage = poll(run_id, timeout=150)
-        assert outage["status"] in TERMINAL, outage
+        outage = poll(run_id, timeout=300)
+        assert outage["status"] == "escalated", outage
+        assert outage["result"]["degraded"] is True, outage
+        assert outage["result"]["escalation"]["reason_code"] == "agent_failure", outage
     finally:
         compose("start", "retrieval")
     wait_retrieval()
