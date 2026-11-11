@@ -82,5 +82,3 @@ jobs:
       - name: Stop the stack
         if: always()
         run: docker compose --profile resources down -v
-
-
