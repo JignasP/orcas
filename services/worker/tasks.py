@@ -82,7 +82,7 @@ try:
 
 except ImportError as exc:
     if getattr(exc, "name", None) != "celery":
-        pass
+        raise
     celery_app = None
     logger.info("Celery not installed; run_complaint_pipeline available as plain function.")
 
