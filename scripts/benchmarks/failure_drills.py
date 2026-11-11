@@ -88,6 +88,29 @@ def worker_drill():
     return {"run_id": run_id, "status_while_stopped": "queued", "status_after_restart": result["status"]}
 
 
+def midrun_worker_drill():
+    run_id = submit("drill-worker-midrun")
+    deadline = time.monotonic() + 90
+    while time.monotonic() < deadline:
+        status, body = request("GET", f"/v1/runs/{run_id}")
+        assert status == 200, (status, body)
+        if body["status"] == "running":
+            break
+        assert body["status"] == "queued", body
+        time.sleep(0.25)
+    else:
+        raise TimeoutError("run did not start before the worker drill")
+    compose("kill", "worker")
+    try:
+        _, stopped = request("GET", f"/v1/runs/{run_id}")
+        assert stopped["status"] == "running", stopped
+    finally:
+        compose("start", "worker")
+    result = poll(run_id, timeout=360)
+    assert result["status"] in {"completed", "escalated"}, result
+    return {"run_id": run_id, "status_when_killed": "running", "status_after_restart": result["status"]}
+
+
 def redis_drill():
     compose("stop", "redis")
     try:
@@ -123,7 +146,8 @@ if __name__ == "__main__":
     results = {}
     output = Path("loadtest/results/ci/failure-drills.json")
     output.parent.mkdir(parents=True, exist_ok=True)
-    for name, drill in (("worker", worker_drill), ("redis", redis_drill),
+    for name, drill in (("worker", worker_drill), ("worker_midrun", midrun_worker_drill),
+                        ("redis", redis_drill),
                         ("retrieval", retrieval_drill)):
         try:
             results[name] = drill()
