@@ -42,3 +42,40 @@ time, affected service, symptom, detection, cause, recovery, and follow-up.
 - **Follow-up:** keep the recovery drill in CI and treat a failed probe as
   test evidence until the service state is checked, rather than assuming the
   application failed to recover.
+
+## 2026-11-03 UTC — Stub routing skewed the measured workload
+
+- **Affected component:** LLM stub and the earlier Locust benchmark.
+- **Symptom and detection:** the ten-client phase recorded 101 completed and
+  263 escalated runs; the audit found many escalations after one LLM call.
+- **Cause:** the stub's narrow parsing and classification did not represent
+  the intended multi-step agent workload.
+- **Recovery:** commit `3a64fc6` hardened parsing and added a multi-entity
+  classifier. The earlier latency table remains historical evidence.
+- **Follow-up:** rerun the identical workload and compare outcome mix, calls
+  per run, and p95 before using it as the demo benchmark.
+
+## 2026-11-03 UTC — Bank case cited a non-maintainability clause
+
+- **Affected component:** stub citation selection and agent evidence handling.
+- **Symptom and detection:** the audit found that the §4.1 bank case cited RBI
+  clause 10 as its routing basis, although that clause covers non-maintainability.
+- **Cause:** clause 10 ranked ahead of the decisive grounds clause in the
+  retrieved context, and the stub selected it.
+- **Recovery:** commit `3a64fc6` excluded non-maintainability headings from
+  RBI citation selection; `50dfb54` added verifier ledger checks and `0143493`
+  aligned stub citations with an empty evidence ledger.
+- **Follow-up:** keep the reference-case citation test in CI and inspect its
+  live trace during the demo rehearsal.
+
+## 2026-11-03 UTC — LLM failure could silently use a heuristic answer
+
+- **Affected component:** LLM gateway and worker client.
+- **Symptom and detection:** the integration audit found a fallback path that
+  could return an unverified heuristic answer when the provider failed.
+- **Cause:** provider failure was not represented as a typed unavailable state
+  throughout the call chain.
+- **Recovery:** commit `8a0b62c` added fail-closed gateway behavior and typed
+  `LLMUnavailable` handling.
+- **Follow-up:** demonstrate provider failure with `kill_provider.sh` and
+  confirm an escalated, degraded determination.

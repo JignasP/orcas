@@ -35,6 +35,23 @@ for a synthetic-only demo, then recreate the LLM gateway. The breaker closes
 after a successful provider call. Verify the next run's `degraded` field and
 its Jaeger trace before calling the incident resolved.
 
+For a hosted provider, distinguish HTTP `429` or exhausted quota from a bad
+`LLM_API_KEY`; correct `.env` privately and recreate `llm-gateway`. For Ollama,
+check `docker compose --profile ollama ps ollama`, its model inventory with
+`docker compose exec ollama ollama list`, and the `LLM_API_BASE` setting.
+When no model can verify, the run must reach an escalated determination with
+`verification_unavailable` or `agent_failure` and `degraded=true`; do not treat
+an unverified draft as a completed answer.
+
+## Stale running run
+
+The `worker-scheduler` dispatches a sweep every minute. A run left in
+`running` beyond `CELERY_TIME_LIMIT` plus 60 seconds is escalated with
+`agent_failure` and `degraded=true`. Check its `run_finished` recovery event.
+If the scheduler is down, restart it with `docker compose restart worker-scheduler`
+and confirm the run reaches a terminal state. The mid-run worker kill drill
+checks redelivery and the sweep path on a disposable stack.
+
 ## Controlled failure checks
 
 The [Compose failure-drill run](https://github.com/JignasP/orcas/actions/runs/40542611618)
@@ -44,11 +61,14 @@ used a disposable clean runner and the stub-backed stack:
 |---|---|---|
 | Worker | Accepted run stayed `queued` | The same run completed |
 | Redis | Intake returned HTTP `503` | A new run completed |
-| Retrieval | Accepted run reached `failed` | A new run completed |
+| Retrieval | In the earlier drill, an accepted run reached `failed` | A new run completed |
 
 Run `python scripts/benchmarks/failure_drills.py` only on a disposable Compose
 stack. The script stops one service at a time and writes the outcome to
 `loadtest/results/ci/failure-drills.json`. A retrieval outage does not
 automatically retry its failed run; submit a new synthetic complaint after
-restoring retrieval. Docker is unavailable on this workstation, so these
-observations come from GitHub Actions rather than a local run.
+restoring retrieval. With the current fail-closed worker, a retrieval outage
+should escalate with `agent_failure` and `degraded=true`. The new mid-run kill
+case and changed outage outcome require a fresh CI run; the table records the
+older observed result until then. Docker's engine was unavailable on the
+development workstation, so these observations came from GitHub Actions.
