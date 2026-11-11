@@ -21,7 +21,7 @@ item 2; use it in item 3.
 | 6 | Mitesh | `bash scripts/demo/demo_6_bad_draft.sh` | The verifier rejects a fabricated citation | Show the verifier event in the run trace. |
 | 7 | Jignas and Mitesh | `python scripts/demo/check_guardrail_rejection.py` | Instruction-like input returns `422` with no queued run | Show the labelled guardrail regression tests. |
 | 8 | Mitesh | `bash scripts/demo/kill_provider.sh` | The breaker opens; unavailable verification escalates with `degraded=true` | Use the script's stub-backed fault injection and the LLM gateway metrics. |
-| 9 | Jignas | Compare the committed `loadtest/results/` CSVs with [the unchanged target](slo.md); show `http://localhost:3000` | Baseline p95, failure concurrency, three-worker comparison, and queue/resource panels | Use the CI benchmark artifact and state its stub/workload limitations. |
+| 9 | Jignas | Compare the [committed benchmark](../loadtest/results/ci/summary.json) with [the unchanged target](slo.md); show `http://localhost:3000` | Ten-client p95 30 s, three-worker p95 11 s, first latency breach at 40 clients (p95 104 s), and queue/resource panels | Use the [CI benchmark](https://github.com/Mitxh13/orcas/actions/runs/43057185087) and state its stub/workload limitations. |
 | 10 | Mitesh and Tahir | Submit the bank fixed-deposit preset again with cache bypass | The §4.1 routing basis cites the relevant RBI provision | Open the retrieval and verifier trace for that run. |
 
 Run items 2 and 10 with `X-Run-Cache-Bypass: true` when measuring fresh agent

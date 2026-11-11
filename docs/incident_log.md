@@ -52,8 +52,13 @@ time, affected service, symptom, detection, cause, recovery, and follow-up.
   the intended multi-step agent workload.
 - **Recovery:** commit `3a64fc6` hardened parsing and added a multi-entity
   classifier. The earlier latency table remains historical evidence.
-- **Follow-up:** rerun the identical workload and compare outcome mix, calls
-  per run, and p95 before using it as the demo benchmark.
+- **Follow-up:** the
+  [repeat benchmark](https://github.com/Mitxh13/orcas/actions/runs/43057185087)
+  used the same payload mix and stub delay. The ten-client database window
+  changed from 101 completed / 263 escalated to 245 completed / 136
+  escalated; p95 changed from 40 to 30 seconds. LLM calls per terminal run
+  remained near three, so inspect the reference-case trace before claiming
+  its full reasoning depth from the aggregate benchmark.
 
 ## 2026-11-03 UTC — Bank case cited a non-maintainability clause
 

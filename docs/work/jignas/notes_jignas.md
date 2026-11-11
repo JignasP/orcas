@@ -175,3 +175,20 @@ completed after recovery. The retrieval outage run escalated with
 `agent_failure` and `degraded=true`; a new run completed after retrieval
 restarted. The exact run IDs and statuses are in
 [`loadtest/results/ci/failure-drills.json`](../../../loadtest/results/ci/failure-drills.json).
+
+## 2026-11-11 — Representative stub benchmark repeat
+
+The [CI benchmark](https://github.com/Mitxh13/orcas/actions/runs/43057185087)
+completed all seven phases with exit code zero and no Locust failures. At ten
+clients with one worker, 380 end-to-end observations had p50 22 seconds, p95
+30 seconds, and throughput 0.417/s. The database window recorded 245 completed
+and 136 escalated outcomes, compared with 101 completed and 263 escalated in
+the earlier run. Three workers at ten clients reduced p95 to 11 seconds and
+raised throughput to 1.186/s. The first measured latency breach remained at
+40 clients: p95 104 seconds against the 90-second target. The repeat-input
+cache p95 was 0.13 seconds with no new LLM calls or tokens; bypass p95 was
+31 seconds. The [committed results](../../../loadtest/results/ci/summary.json)
+include all phase CSVs, database snapshots, outcome mix, and calls per run.
+Average calls per terminal run stayed near three, so the aggregate does not
+prove the deeper bank-case path. Resource screenshots and a live-model cost
+measurement still require the demo environment.
