@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/jignas/reliability-and-operations
+      - feat/jignas/demo-improvements
     paths:
       - .github/workflows/benchmark.yml
 
