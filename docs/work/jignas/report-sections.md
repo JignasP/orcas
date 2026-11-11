@@ -123,8 +123,11 @@ assign an exact hit ratio to those 1,559 observations. The stub recorded
 production cost estimate. It cannot identify a monetary top driver, although
 the bypass window used 293,199 tokens and the repeat window recorded none.
 
-The [controlled failure run](https://github.com/JignasP/orcas/actions/runs/40542611618)
-observed a queued run completing after worker restart, HTTP `503` during a
-Redis outage followed by a completed new run, and a failed run during a
-retrieval outage followed by a completed new run after restart. Docker is
-unavailable on this workstation; these results are from clean hosted runners.
+The [updated recovery run](https://github.com/Mitxh13/orcas/actions/runs/43060243324)
+observed a queued run completing after worker restart, a mid-run worker kill
+reaching `escalated` after restart, HTTP `503` during a Redis outage followed
+by a completed new run, and an `agent_failure` degraded escalation during a
+retrieval outage followed by a completed new run after restart. The exact
+outcomes are [committed](../../../loadtest/results/ci/failure-drills.json).
+Docker is unavailable on this workstation; these results are from clean
+hosted runners.

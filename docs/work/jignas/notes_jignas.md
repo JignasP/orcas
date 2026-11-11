@@ -155,3 +155,23 @@ the worker pinned at 100% CPU. The fork runner's cAdvisor range query exposed
 host cgroups but no Compose container IDs, while the original-repository
 Compose smoke verified live Grafana resource panel queries. The benchmark
 therefore reports Docker stats for service-level resource figures.
+
+## 2026-11-11 — Recovery drill on the updated stack
+
+The first [CI run](https://github.com/Mitxh13/orcas/actions/runs/43057185087)
+showed a queued run completing after worker restart, a run killed while
+`running` completing after restart, and HTTP `503` during a Redis outage
+followed by a completed run. The retrieval outage run had not reached a
+terminal state within the drill's 150-second polling window. This was shorter
+than the configured 180-second worker hard limit plus 60-second stale-run
+margin; the drill was extended to 300 seconds and made to check the degraded
+escalation reason.
+
+The [repeat run](https://github.com/Mitxh13/orcas/actions/runs/43060243324)
+passed all four cases. The queued worker run completed after restart. The
+mid-run worker kill reached `escalated` after restart, so it did not remain
+stuck in `running`. Intake returned `503` while Redis was down, and a new run
+completed after recovery. The retrieval outage run escalated with
+`agent_failure` and `degraded=true`; a new run completed after retrieval
+restarted. The exact run IDs and statuses are in
+[`loadtest/results/ci/failure-drills.json`](../../../loadtest/results/ci/failure-drills.json).

@@ -79,3 +79,19 @@ time, affected service, symptom, detection, cause, recovery, and follow-up.
   `LLMUnavailable` handling.
 - **Follow-up:** demonstrate provider failure with `kill_provider.sh` and
   confirm an escalated, degraded determination.
+
+## 2026-11-11 UTC — Retrieval outage drill ended before stale-run recovery
+
+- **Affected component:** CI recovery drill on the stub-backed Compose stack.
+- **Symptom and detection:** the first
+  [run](https://github.com/Mitxh13/orcas/actions/runs/43057185087) timed out
+  while polling a retrieval-outage run after 150 seconds; the earlier worker
+  and Redis cases passed.
+- **Cause:** the drill's 150-second wait ended before the configured
+  180-second worker hard limit plus 60-second stale-run margin.
+- **Recovery:** commit `e513503` waits through that recovery window and
+  requires an `agent_failure`, degraded escalation. The
+  [repeat run](https://github.com/Mitxh13/orcas/actions/runs/43060243324)
+  passed all four cases, including a completed new run after retrieval restart.
+- **Follow-up:** retain the longer timeout and inspect the persisted run
+  status and reason in future recovery checks.

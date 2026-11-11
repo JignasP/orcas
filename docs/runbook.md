@@ -54,21 +54,22 @@ checks redelivery and the sweep path on a disposable stack.
 
 ## Controlled failure checks
 
-The [Compose failure-drill run](https://github.com/JignasP/orcas/actions/runs/40542611618)
-used a disposable clean runner and the stub-backed stack:
+The [Compose failure-drill run](https://github.com/Mitxh13/orcas/actions/runs/43060243324)
+used a disposable CI runner and the stub-backed stack. Its recorded outcomes
+are in [`loadtest/results/ci/failure-drills.json`](../loadtest/results/ci/failure-drills.json):
 
 | Stopped service | Observed during outage | After restart |
 |---|---|---|
 | Worker | Accepted run stayed `queued` | The same run completed |
+| Worker killed mid-run | Accepted run was `running` | The same run reached `escalated` |
 | Redis | Intake returned HTTP `503` | A new run completed |
-| Retrieval | In the earlier drill, an accepted run reached `failed` | A new run completed |
+| Retrieval | Accepted run reached `escalated` with `agent_failure` and `degraded=true` | A new run completed |
 
 Run `python scripts/benchmarks/failure_drills.py` only on a disposable Compose
 stack. The script stops one service at a time and writes the outcome to
-`loadtest/results/ci/failure-drills.json`. A retrieval outage does not
-automatically retry its failed run; submit a new synthetic complaint after
-restoring retrieval. With the current fail-closed worker, a retrieval outage
-should escalate with `agent_failure` and `degraded=true`. The new mid-run kill
-case and changed outage outcome require a fresh CI run; the table records the
-older observed result until then. Docker's engine was unavailable on the
-development workstation, so these observations came from GitHub Actions.
+`loadtest/results/ci/failure-drills.json`. The outage run is terminal but is
+not automatically retried after retrieval returns; submit a new synthetic
+complaint after restoring retrieval. The worker kill case demonstrates a
+terminal outcome, not a guarantee of completion. Docker's engine was
+unavailable on the development workstation, so these observations came from
+GitHub Actions.
